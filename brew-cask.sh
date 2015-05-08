@@ -18,11 +18,9 @@ brew cask install imagealpha
 brew cask install imageoptim
 
 # browsers
-brew cask install google-chrome-canary
-brew cask install firefox-nightly --force
+brew cask install google-chrome
 brew cask install webkit-nightly --force
 brew cask install chromium --force
 
 # less often
 brew cask install disk-inventory-x
-brew cask install screenflow4 # 4 specifically not 5.

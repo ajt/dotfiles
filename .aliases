@@ -68,6 +68,15 @@ alias undopush="git push -f origin HEAD^:master"
 # git root
 alias gr='[ ! -z `git rev-parse --show-cdup` ] && cd `git rev-parse --show-cdup || pwd`'
 
+alias cgs="clear && git status"
+alias cll="clear && ls -lasrth"
+alias cls="clear && ls"
+
+# TMUX IT
+alias tks="tmux kill-session"
+
+# GET RID OF IT
+alias rmpyc="find . -name '*.pyc' -delete"
 
 
 # IP addresses

@@ -35,18 +35,6 @@ cp ~/Documents $dest
 
 cp ~/.bash_history $dest # back it up for fun?
 
-# Timestats chrome extension stats
-# 	gotta export into JSON through their UI. save somewhere hilarious
-
-# Current Chrome tabs via OneTab
-
-# iTerm settings - not sure how to safely migrate yet.
-
-# Finder settings and TotalFinder settings
-#   Not sure how to do this yet. Really want to.
-
-
-
 
 ##
 ## new machine setup.
@@ -57,8 +45,8 @@ cp ~/.bash_history $dest # back it up for fun?
 # homebrew!
 #
 # (google machines are funny so i have to do this. everyone else should use the regular thang)
-mkdir $HOME/.homebrew && curl -L https://github.com/mxcl/homebrew/tarball/master | tar xz --strip 1 -C $HOME/.homebrew
-export PATH=$HOME/.homebrew/bin:$HOME/.homebrew/sbin:$PATH
+ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
 #
 # install all the things
 ./brew.sh
