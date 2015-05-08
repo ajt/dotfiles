@@ -35,7 +35,13 @@ brew cask install chromium --force
 # less often
 brew cask install disk-inventory-x
 
+# Elasticsearch madness
+brew install Caskroom/cask/java
+brew install elasticsearch
+ln -sfv /usr/local/opt/elasticsearch/*.plist ~/Library/LaunchAgents
+launchctl load ~/Library/LaunchAgents/homebrew.mxcl.elasticsearch.plist
+
 # security
 brew cask install little-snitch
-
 echo "Security: https://objective-see.com/products.html"
+open /opt/homebrew-cask/Caskroom/little-snitch/3.5.2/Little\ Snitch\ Installer.app

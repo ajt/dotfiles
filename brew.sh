@@ -47,7 +47,6 @@ brew install zopfli
 brew install ffmpeg --with-libvpx
 
 # more
-brew install elasticsearch
 brew install htop-osx
 brew install irssi
 brew install jpeg
@@ -61,5 +60,13 @@ brew install ssh-copy-id
 brew install subversion
 brew install tmux
 
+# https://www.youtube.com/watch?v=ocmJE2O4uIU
+ln -sfv /usr/local/opt/redis/*.plist ~/Library/LaunchAgents
+launchctl load ~/Library/LaunchAgents/homebrew.mxcl.redis.plist
+ln -sfv /usr/local/opt/memcached/*.plist ~/Library/LaunchAgents
+launchctl load ~/Library/LaunchAgents/homebrew.mxcl.memcached.plist
+
 # Remove outdated versions from the cellar
 brew cleanup
+
+
