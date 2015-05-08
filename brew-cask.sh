@@ -20,6 +20,8 @@ brew cask install evernote
 brew cask install skitch
 brew cask install mailmate
 brew cask install skype
+brew tap caskroom/fonts
+brew cask install font-inconsolata-for-powerlin 
 
 # dev
 brew cask install iterm2
