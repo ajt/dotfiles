@@ -25,6 +25,7 @@ brew cask install skype
 brew cask install iterm2
 brew cask install imagealpha
 brew cask install imageoptim
+brew cask install postgres
 
 # browsers
 brew cask install google-chrome
@@ -33,3 +34,5 @@ brew cask install chromium --force
 
 # less often
 brew cask install disk-inventory-x
+
+echo "Security: https://objective-see.com/products.html"
