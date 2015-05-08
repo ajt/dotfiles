@@ -17,27 +17,20 @@
 
 # let's hold on to these
 
-dest="~/migration" # make this and ./~
+dest="/Users/ajt/migration" # make this and ./~
 
-cp ~/.extra $dest/~
-cp ~/.z $dest/~
-
-cp -r ~/.ssh $dest/~
-# cp ~/.gnupg $dest/~
-cp -r ~/.tmuxinator $dest/~
-
-cp /Volumes/MacintoshHD/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist $dest  # wifi
-
-# cp ~/Library/Preferences/net.limechat.LimeChat.plist $dest
-
-# cp ~/Library/Services $dest # automator stuff
-
+cp ~/.extra $dest
+cp ~/.z $dest
+cp -r ~/.ssh $dest
+cp ~/.gnupg $dest
+cp -r ~/.tmuxinator $dest
+cp /Volumes/Macintosh\ HD/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist $dest  # wifi
+cp ~/Library/Preferences/net.limechat.LimeChat.plist $dest
+cp ~/Library/Services $dest # automator stuff
 cp -r ~/Documents $dest
-
 cp -r ~/Desktop $dest
-
 cp ~/.bash_history $dest # back it up for fun?
-
+tar cf ~/migration.tar $dest
 
 ##
 ## new machine setup.
