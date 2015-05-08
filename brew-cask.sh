@@ -1,7 +1,7 @@
 export HOMEBREW_CASK_OPTS="--appdir=/Applications"
 
-# to maintain cask .... 
-#     brew update && brew upgrade brew-cask && brew cleanup && brew cask cleanup` 
+# to maintain cask ....
+#     brew update && brew upgrade brew-cask && brew cleanup && brew cask cleanup`
 
 
 # Install native apps
@@ -34,5 +34,8 @@ brew cask install chromium --force
 
 # less often
 brew cask install disk-inventory-x
+
+# security
+brew cask install little-snitch
 
 echo "Security: https://objective-see.com/products.html"
