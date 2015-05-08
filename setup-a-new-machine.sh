@@ -55,7 +55,8 @@ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/
 ./brew.sh
 ./brew-cask.sh
 
-
+# GIVE ME JANUS
+curl -Lo- https://bit.ly/janus-bootstrap | bash
 
 
 # github.com/jamiew/git-friendly
