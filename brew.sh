@@ -1,7 +1,7 @@
 # Install command-line tools using Homebrew
 
 # Make sure we’re using the latest Homebrew
-brew update
+brew update --all
 
 # Upgrade any already-installed formulae
 brew upgrade
@@ -29,7 +29,7 @@ brew install homebrew/versions/bash-completion2
 brew install grc
 
 # Install wget with IRI support
-brew install wget --enable-iri
+brew install wget --with-iri
 
 # Install more recent versions of some OS X tools
 brew install vim --override-system-vi
