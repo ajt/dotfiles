@@ -11,9 +11,9 @@
 ##
 
 # what is worth reinstalling
-brew list
-brew cask list
-npm list -g --depth=0 
+# brew list
+# brew cask list
+# npm list -g --depth=0
 
 # let's hold on to these
 
@@ -22,16 +22,19 @@ dest="~/migration" # make this and ./~
 cp ~/.extra $dest/~
 cp ~/.z $dest/~
 
-cp ~/.ssh $dest/~
-cp ~/.gnupg $dest/~
+cp -r ~/.ssh $dest/~
+# cp ~/.gnupg $dest/~
+cp -r ~/.tmuxinator $dest/~
 
 cp /Volumes/MacintoshHD/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist $dest  # wifi
 
-cp ~/Library/Preferences/net.limechat.LimeChat.plist $dest
+# cp ~/Library/Preferences/net.limechat.LimeChat.plist $dest
 
-cp ~/Library/Services $dest # automator stuff
+# cp ~/Library/Services $dest # automator stuff
 
-cp ~/Documents $dest
+cp -r ~/Documents $dest
+
+cp -r ~/Desktop $dest
 
 cp ~/.bash_history $dest # back it up for fun?
 
