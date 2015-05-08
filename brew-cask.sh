@@ -44,3 +44,4 @@ launchctl load ~/Library/LaunchAgents/homebrew.mxcl.elasticsearch.plist
 # security
 brew cask install little-snitch
 echo "Security: https://objective-see.com/products.html"
+open /opt/homebrew-cask/Caskroom/little-snitch/3.5.2/Little\ Snitch\ Installer.app
