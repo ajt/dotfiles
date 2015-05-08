@@ -47,6 +47,7 @@ brew install zopfli
 brew install ffmpeg --with-libvpx
 
 # more
+brew install python
 brew install elasticsearch
 brew install htop-osx
 brew install irssi
@@ -60,6 +61,7 @@ brew install sqlite
 brew install ssh-copy-id
 brew install subversion
 brew install tmux
+brew install reattach-to-user-namespace
 
 # Remove outdated versions from the cellar
 brew cleanup

@@ -67,6 +67,8 @@ bash < <( curl https://raw.github.com/jamiew/git-friendly/master/install.sh)
 # Type `git open` to open the GitHub page or website for a repository.
 npm install -g git-open
 
+# Install virtualenvwrapper
+pip install virtualenvwrapper
 
 # github.com/rupa/z   - oh how i love you
 git clone https://github.com/rupa/z.git ~/code/z
@@ -89,7 +91,18 @@ git clone https://github.com/thebitguru/play-button-itunes-patch ~/code/play-but
 
 
 # for the c alias (syntax highlighted cat)
-sudo easy_install Pygments
+pip install Pygments
+
+# GIVE ME POWERLINE
+pip install powerline-status
+
+# WHAT IS RUBY?!?!
+\curl -L https://get.rvm.io | bash
+
+# HOW ABOUT TMUXINATOR?
+gem install tmuxinator
+mkdir ~/.bin/
+curl -L -o ~/.bin/tmuxinator.bash https://raw.github.com/aziz/tmuxinator/master/completion/tmuxinator.bash
 
 
 # change to bash 4 (installed by homebrew)
