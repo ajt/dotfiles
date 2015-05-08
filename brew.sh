@@ -47,7 +47,6 @@ brew install zopfli
 brew install ffmpeg --with-libvpx
 
 # more
-brew install elasticsearch
 brew install htop-osx
 brew install irssi
 brew install jpeg
@@ -63,3 +62,5 @@ brew install tmux
 
 # Remove outdated versions from the cellar
 brew cleanup
+
+
