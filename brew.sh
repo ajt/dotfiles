@@ -46,5 +46,20 @@ brew install tree
 brew install zopfli
 brew install ffmpeg --with-libvpx
 
+# more
+brew install elasticsearch
+brew install htop-osx
+brew install irssi
+brew install jpeg
+brew install knock
+brew install memcached
+brew install mercurial
+brew install p7zip
+brew install redis
+brew install sqlite
+brew install ssh-copy-id
+brew install subversion
+brew install tmux
+
 # Remove outdated versions from the cellar
 brew cleanup
