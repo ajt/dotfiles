@@ -35,7 +35,10 @@ brew cask install chromium --force
 # less often
 brew cask install disk-inventory-x
 
+# Elasticsearch madness
+brew install Caskroom/cask/java
+brew install elasticsearch
+
 # security
 brew cask install little-snitch
-
 echo "Security: https://objective-see.com/products.html"
