@@ -73,6 +73,7 @@ brew install sqlite
 brew install ssh-copy-id
 brew install subversion
 brew install tmux
+brew install tmuxinator
 brew install reattach-to-user-namespace
 
 # https://www.youtube.com/watch?v=ocmJE2O4uIU
