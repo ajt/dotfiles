@@ -44,6 +44,8 @@ Plug 'Yggdroot/indentLine'
 Plug 'avelino/vim-bootstrap-updater'
 Plug 'sheerun/vim-polyglot'
 Plug 'tpope/vim-rhubarb' " required by fugitive to :Gbrowse
+Plug 'kien/ctrlp.vim'
+Plug 'gregsexton/MatchTag'
 
 if isdirectory('/usr/local/opt/fzf')
   Plug '/usr/local/opt/fzf' | Plug 'junegunn/fzf.vim'
@@ -124,7 +126,7 @@ set shiftwidth=4
 set expandtab
 
 "" Map leader to ,
-let mapleader=','
+let mapleader='\'
 
 "" Enable hidden buffers
 set hidden
@@ -543,3 +545,9 @@ endif
 "" OLD VIMRC STUFF
 "*************************************************************************
 let g:ctrlp_show_hidden = 1
+set wildignore+=*/tmp/*,*.so,*.swp,*.zip
+let g:ctrlp_custom_ignore = '\v[\/]\.(git|hg|svn)$'
+let g:ctrlp_custom_ignore = {
+  \ 'dir':  '\v[\/]\.(git|hg|svn)$',
+  \ 'file': '\v\.(exe|so|dll)$',
+  \ }
