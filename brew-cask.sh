@@ -1,4 +1,5 @@
-brew install homebrew/cask-cask/brew-cask
+brew install caskroom/cask/brew-cask
+
 brew cask install 1password
 brew cask install iterm2
 brew cask install spotify
