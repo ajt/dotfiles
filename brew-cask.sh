@@ -7,8 +7,10 @@ brew install --cask electric-sheep
 brew install --cask evernote
 brew install --cask skitch
 brew install --cask mailmate
-brew install --cask font-inconsolata-for-powerline
-brew install --cask font-inconsolata-for-powerline-bold
+brew tap homebrew/cask-fonts
+brew install font-inconsolata
+brew install font-inconsolata-for-powerline
+brew install font-inconsolata-for-powerline-bold
 brew install --cask postgres
 brew install --cask postico
 brew install --cask vlc
