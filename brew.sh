@@ -19,7 +19,7 @@ brew install moreutils
 # Install GNU `find`, `locate`, `updatedb`, and `xargs`, `g`-prefixed
 brew install findutils
 # Install GNU `sed`, overwriting the built-in `sed`
-brew install gnu-sed --default-names
+brew install gnu-sed --with-default-names
 
 
 # Install Bash 4
@@ -41,10 +41,10 @@ brew install gnupg
 
 
 # Install wget with IRI support
-brew install wget --with-iri
+brew install wget
 
 # Install more recent versions of some OS X tools
-brew install vim --override-system-vi
+brew install vim --with-override-system-vi
 brew install grep
 brew install screen
 # brew install z # let me handle this
@@ -69,7 +69,7 @@ brew install git
 brew install gs
 brew install p7zip
 
-brew install imagemagick --with-webp
+brew install imagemagick
 brew install node # This installs `npm` too using the recommended installation method
 brew install pv
 brew install rename

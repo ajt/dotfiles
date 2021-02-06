@@ -9,10 +9,9 @@ brew cask install electric-sheep
 brew cask install evernote
 brew cask install skitch
 brew cask install mailmate
-brew tap homebrew/cask-fonts
+brew tap caskroom/fonts
 brew cask install font-inconsolata-for-powerline
 brew cask install font-inconsolata-for-powerline-bold
-brew tap homebrew/cask-versions
 brew cask install postgres
 brew cask install postico
 brew cask install vlc
