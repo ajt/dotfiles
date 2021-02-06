@@ -103,3 +103,6 @@ export PATH=/usr/local/opt/python/libexec/bin:$PATH
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$HOME/Devel
 source /usr/local/bin/virtualenvwrapper.sh
+export PATH="/usr/local/sbin:$PATH"
+alias python3=/usr/local/bin/python3
+export PATH="/usr/local/opt/libressl/bin:$PATH"

@@ -112,10 +112,10 @@ defaults write com.apple.SoftwareUpdate ScheduleFrequency -int 1
 # launchctl unload -w /System/Library/LaunchAgents/com.apple.notificationcenterui.plist 2> /dev/null
 
 # Disable smart quotes as they’re annoying when typing code
-# defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
 
 # Disable smart dashes as they’re annoying when typing code
-# defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
 
 # Set a custom wallpaper image. `DefaultDesktop.jpg` is already a symlink, and
 # all wallpapers are in `/Library/Desktop Pictures/`. The default is `Wave.jpg`.
@@ -133,15 +133,22 @@ sudo tmutil disablelocal
 # Disable hibernation (speeds up entering sleep mode)
 sudo pmset -a hibernatemode 0
 
-# Remove the sleep image file to save disk space
-# sudo rm /Private/var/vm/sleepimage
+ # Remove the sleep image file to save disk space
+sudo rm /Private/var/vm/sleepimage
   # Create a zero-byte file instead…
-  # sudo touch /Private/var/vm/sleepimage
+sudo touch /Private/var/vm/sleepimage
   # …and make sure it can’t be rewritten
-  # sudo chflags uchg /Private/var/vm/sleepimage
+sudo chflags uchg /Private/var/vm/sleepimage
 
 # Disable the sudden motion sensor as it’s not useful for SSDs
 sudo pmset -a sms 0
+
+###############################################################################
+# MacBookPro Touch Bar                                                        #
+###############################################################################
+
+# Always display full control strip (ignoring App Controls)
+defaults write com.apple.touchbar.agent PresentationModeGlobal fullControlStrip
 
 ###############################################################################
 # Trackpad, mouse, keyboard, Bluetooth accessories, and input                 #
@@ -312,6 +319,9 @@ defaults write com.apple.finder EmptyTrashSecurely -bool true
 
 # Show the ~/Library folder
 chflags nohidden ~/Library
+
+# Show the /Volumes folder
+sudo chflags nohidden /Volumes
 
 # Remove Dropbox’s green checkmark icons in Finder
 # file=/Applications/Dropbox.app/Contents/Resources/emblem-dropbox-uptodate.icns
@@ -548,6 +558,44 @@ sudo mdutil -E / > /dev/null
 defaults write com.apple.terminal StringEncodings -array 4
 
 
+
+# Use a modified version of the Solarized Dark theme by default in Terminal.app
+osascript <<EOD
+
+tell application "Terminal"
+
+	local allOpenedWindows
+	local initialOpenedWindows
+	local windowID
+	set themeName to "Solarized Dark xterm-256color"
+	(* Store the IDs of all the open terminal windows. *)
+	set initialOpenedWindows to id of every window
+	(* Open the custom theme so that it gets added to the list
+	   of available terminal themes (note: this will open two
+	   additional terminal windows). *)
+	do shell script "open '$HOME/init/" & themeName & ".terminal'"
+	(* Wait a little bit to ensure that the custom theme is added. *)
+	delay 1
+	(* Set the custom theme as the default terminal theme. *)
+	set default settings to settings set themeName
+	(* Get the IDs of all the currently opened terminal windows. *)
+	set allOpenedWindows to id of every window
+	repeat with windowID in allOpenedWindows
+		(* Close the additional windows that were opened in order
+		   to add the custom theme to the list of terminal themes. *)
+		if initialOpenedWindows does not contain windowID then
+			close (every window whose id is windowID)
+		(* Change the theme for the initial opened terminal windows
+		   to remove the need to close them in order for the custom
+		   theme to be applied. *)
+		else
+			set current settings of tabs of (every window whose id is windowID) to settings set themeName
+		end if
+	end repeat
+end tell
+EOD
+
+
 # Enable “focus follows mouse” for Terminal.app and all X11 apps
 # i.e. hover over a window and start typing in it without clicking first
 #defaults write com.apple.terminal FocusFollowsMouse -bool true
@@ -620,6 +668,14 @@ defaults write com.apple.appstore WebKitDeveloperExtras -bool true
 defaults write com.apple.appstore ShowDebugMenu -bool true
 
 ###############################################################################
+# Photos                                                                      #
+###############################################################################
+
+# Prevent Photos from opening automatically when devices are plugged in
+defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool true
+
+
+###############################################################################
 # Messages                                                                    #
 ###############################################################################
 
@@ -627,7 +683,7 @@ defaults write com.apple.appstore ShowDebugMenu -bool true
 # defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "automaticEmojiSubstitutionEnablediMessage" -bool false
 
 # Disable smart quotes as it’s annoying for messages that contain code
-# defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "automaticQuoteSubstitutionEnabled" -bool false
+defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "automaticQuoteSubstitutionEnabled" -bool false
 
 # Disable continuous spell checking
 # defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "continuousSpellCheckingEnabled" -bool false
@@ -682,6 +738,14 @@ defaults write com.operasoftware.OperaDeveloper PMPrintingExpandedStateForPrint2
 # defaults write com.irradiatedsoftware.SizeUp ShowPrefsOnNextStart -bool false
 
 ###############################################################################
+# Sublime Text                                                                #
+###############################################################################
+
+# Install Sublime Text settings
+cp -r init/Preferences.sublime-settings ~/Library/Application\ Support/Sublime\ Text*/Packages/User/Preferences.sublime-settings 2> /dev/null
+
+
+###############################################################################
 # Transmission.app                                                            #
 ###############################################################################
 
@@ -696,6 +760,14 @@ defaults write com.operasoftware.OperaDeveloper PMPrintingExpandedStateForPrint2
 # defaults write org.m0k.transmission WarningDonate -bool false
 # Hide the legal disclaimer
 # defaults write org.m0k.transmission WarningLegal -bool false
+
+###############################################################################
+# Tweetbot.app                                                                #
+###############################################################################
+
+# Bypass the annoyingly slow t.co URL shortener
+defaults write com.tapbots.TweetbotMac OpenURLsDirectly -bool true
+
 
 ###############################################################################
 # Twitter.app                                                                 #

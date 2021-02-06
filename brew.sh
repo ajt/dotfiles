@@ -1,7 +1,7 @@
 # Install command-line tools using Homebrew
 
 # Make sure we’re using the latest Homebrew
-brew update --all
+brew update
 
 # Upgrade any already-installed formulae
 brew upgrade
@@ -25,7 +25,8 @@ brew install gnu-sed --default-names
 # Install Bash 4
 # Note: don’t forget to add `/usr/local/bin/bash` to `/etc/shells` before running `chsh`.
 brew install bash
-brew install bash-completion2
+brew install bash-completion
+brew install homebrew/completions/brew-cask-completion
 
 # Switch to using brew-installed bash as default shell
 if ! fgrep -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
@@ -44,9 +45,25 @@ brew install wget --with-iri
 
 # Install more recent versions of some OS X tools
 brew install vim --override-system-vi
-brew install homebrew/dupes/grep
+brew install grep
+brew install screen
+brew install z
+brew install entr
+brew intall entr
+brew install hub
+
+# mtr - ping & traceroute. best.
+brew install mtr
+
+    # allow mtr to run without sudo
+    mtrlocation=$(brew info mtr | grep Cellar | sed -e 's/ (.*//') #  e.g. `/Users/paulirish/.homebrew/Cellar/mtr/0.86`
+    sudo chmod 4755 $mtrlocation/sbin/mtr
+    sudo chown root $mtrlocation/sbin/mtr
+
 
 # Install other useful binaries
+brew install the_silver_searcher
+brew install fzf
 brew install ack
 brew install git
 brew install gs
@@ -59,19 +76,20 @@ brew install rename
 brew install tree
 brew install zopfli
 brew install ffmpeg --with-libvpx
+brew install terminal-notifier
+brew install pidcat
+brew install ncdu
 
 # more
 brew install python
 brew install htop-osx
-brew install irssi
+# brew install irssi # goodby sweet prince...
 brew install jpeg
 brew install knock
 brew install memcached
-brew install mercurial
 brew install p7zip
 brew install sqlite
 brew install ssh-copy-id
-brew install subversion
 brew install tmux
 brew install tmuxinator
 brew install reattach-to-user-namespace
