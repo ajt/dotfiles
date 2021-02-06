@@ -47,7 +47,7 @@ brew install wget --with-iri
 brew install vim --override-system-vi
 brew install grep
 brew install screen
-brew install z
+# brew install z # let me handle this
 brew install entr
 brew intall entr
 brew install hub
