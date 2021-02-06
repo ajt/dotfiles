@@ -49,7 +49,7 @@ brew install grep
 brew install screen
 # brew install z # let me handle this
 brew install entr
-brew intall entr
+brew install entr
 brew install hub
 
 # mtr - ping & traceroute. best.
