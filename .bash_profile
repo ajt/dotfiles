@@ -40,13 +40,25 @@ export PROMPT_COMMAND="history -a; history -c; history -r; $PROMPT_COMMAND"
 # ^ the only downside with this is [up] on the readline will go over all history not just this bash session.
 
 
-# Add tab completion for many Bash commands
-if which brew &> /dev/null && [ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]; then
-	# Ensure existing Homebrew v1 completions continue to work
-	export BASH_COMPLETION_COMPAT_DIR="$(brew --prefix)/etc/bash_completion.d";
-	source "$(brew --prefix)/etc/profile.d/bash_completion.sh";
-elif [ -f /etc/bash_completion ]; then
-	source /etc/bash_completion;
+
+
+# Sorry, very MacOS centric here. :/
+if  which brew > /dev/null; then
+
+    # bash completion.
+    if [ -f "$(brew --prefix)/share/bash-completion/bash_completion" ]; then
+        source "$(brew --prefix)/share/bash-completion/bash_completion";
+    elif [ -f /etc/bash_completion ]; then
+        source /etc/bash_completion;
+    fi
+
+    # homebrew completion
+    source "$(brew --prefix)/etc/bash_completion.d/brew"
+
+    # hub completion
+    if  which hub > /dev/null; then
+        source "$(brew --prefix)/etc/bash_completion.d/hub.bash_completion.sh";
+    fi;
 fi;
 
 ##
