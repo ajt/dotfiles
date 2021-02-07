@@ -1,3 +1,7 @@
+if [[ "$(uname -m)" == "arm64" ]]; then
+  export PATH="/opt/homebrew/bin:${PATH}"
+fi
+
 BREW_PREFIX=$(brew --prefix)
 
 # Load our dotfiles like ~/.bash_prompt, etc…
@@ -14,7 +18,7 @@ GRC=`which grc`
 if [ "$TERM" != dumb ] && [ -n "$GRC" ]
     then
         alias colourify="$GRC -es --colour=auto"
-        alias configure='colourify ./configure' 
+        alias configure='colourify ./configure'
         for app in {diff,make,gcc,g++,mtr,ping,traceroute}; do
             alias "$app"='colourify '$app
     done
@@ -95,7 +99,7 @@ complete -W "NSGlobalDomain" defaults
 
 ##
 ## better `cd`'ing
-## 
+##
 
 # Case-insensitive globbing (used in pathname expansion)
 shopt -s nocaseglob;
