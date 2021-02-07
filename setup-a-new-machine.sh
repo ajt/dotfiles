@@ -31,8 +31,9 @@ tar cf ~/migration.tar $dest
 #
 # (google machines are funny so i have to do this. everyone else should use the regular thang)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-echo 'eval $(/usr/local/bin/brew shellenv)' >> /Users/ajt/.profile
-eval $(/usr/local/bin/brew shellenv)
+echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.zprofile
+echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.profile
+eval $(/opt/homebrew/bin/brew shellenv)
 
 #
 # install all the things
