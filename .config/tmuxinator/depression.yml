@@ -1,0 +1,13 @@
+name: Depression
+root: ~/
+
+# ... more config here
+
+windows:
+  - editor:
+      layout: d6f5,320x83,0,0{241x83,0,0,3,78x83,242,0[78x31,242,0,4,78x30,242,32,5,78x20,242,63,6]}
+      panes:
+        - workon depression && cd ~/Projects/depression/depression && vim
+        - workon depression && cd ~/Projects/depression/depression && python manage.py shell
+        - MailHog
+        - workon depression && cd ~/Projects/depression/depression && python manage.py runserver

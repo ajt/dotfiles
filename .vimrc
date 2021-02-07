@@ -120,9 +120,17 @@ set ttyfast
 set backspace=indent,eol,start
 
 "" Tabs. May be overridden by autocmd rules
+"" set tabstop=4
+"" set softtabstop=0
+"" set shiftwidth=4
+"" set noexpandtab
+
+filetype indent on
+" show existing tab with 4 spaces width
 set tabstop=4
-set softtabstop=4
+" " when indenting with '>', use 4 spaces width
 set shiftwidth=4
+" " On pressing tab, insert 4 spaces
 set expandtab
 
 "" Map leader to ,
@@ -213,9 +221,6 @@ set titleold="Terminal"
 set titlestring=%F
 
 set statusline=%F%m%r%h%w%=(%{&ff}/%Y)\ (line\ %l\/%L,\ col\ %c)\
-
-" Add kite
-set statusline+=%{kite#statusline()}
 
 " Search mappings: These will make it so that going to the next one in a
 " search will center on the line it's found in.
@@ -321,6 +326,10 @@ set autoread
 "*****************************************************************************
 "" Mappings
 "*****************************************************************************
+
+"" Split
+noremap <Leader>h :<C-u>split<CR>
+noremap <Leader>v :<C-u>vsplit<CR>
 
 "" Git
 noremap <Leader>ga :Gwrite<CR>
@@ -463,7 +472,7 @@ augroup END
 augroup vimrc-python
   autocmd!
   autocmd FileType python setlocal expandtab shiftwidth=4 tabstop=4 colorcolumn=79
-      \ formatoptions+=croq softtabstop=4
+      \ formatoptions+=croq
       \ cinwords=if,elif,else,for,while,try,except,finally,def,class,with
 augroup END
 
@@ -551,3 +560,5 @@ let g:ctrlp_custom_ignore = {
   \ 'file': '\v\.(exe|so|dll)$',
   \ }
 
+
+set expandtab
