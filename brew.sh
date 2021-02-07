@@ -90,7 +90,6 @@ brew install ssh-copy-id
 brew install tmux
 brew install tmuxinator
 brew install reattach-to-user-namespace
-brew install mailhog
 
 # Remove outdated versions from the cellar
 brew cleanup

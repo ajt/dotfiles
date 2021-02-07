@@ -3,6 +3,46 @@
   echo "do not run this script in one go. hit ctrl-c NOW"
   read -n 1
 
+
+
+OLDIFS=$IFS
+IFS='.' read osvers_major osvers_minor osvers_dot_version <<< "$(/usr/bin/sw_vers -productVersion)"
+IFS=$OLDIFS
+
+if [[ ${osvers_major} -ge 11 ]]; then
+
+  # Check to see if the Mac needs Rosetta installed by testing the processor
+
+  processor=$(/usr/sbin/sysctl -n machdep.cpu.brand_string | grep -o "Intel")
+  
+  if [[ -n "$processor" ]]; then
+    echo "$processor processor installed. No need to install Rosetta."
+  else
+
+    # Check Rosetta LaunchDaemon. If no LaunchDaemon is found,
+    # perform a non-interactive install of Rosetta.
+    
+    if [[ ! -f "/Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist" ]]; then
+        /usr/sbin/softwareupdate –install-rosetta –agree-to-license
+       
+        if [[ $? -eq 0 ]]; then
+        	echo "Rosetta has been successfully installed."
+        else
+        	echo "Rosetta installation failed!"
+        	exitcode=1
+        fi
+   
+    else
+    	echo "Rosetta is already installed. Nothing to do."
+    fi
+  fi
+  else
+    echo "Mac is running macOS $osvers_major.$osvers_minor.$osvers_dot_version."
+    echo "No need to install Rosetta on this version of macOS."
+fi
+
+
+
 ##
 ## BACKUPS
 ##
@@ -25,16 +65,19 @@ tar cf ~/migration.tar $dest
 ## new machine setup.
 ##
 
+sudo softwareupdate --install-rosetta
 
 #
 # homebrew!
 #
 # (google machines are funny so i have to do this. everyone else should use the regular thang)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.zprofile
-echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.profile
-eval $(/opt/homebrew/bin/brew shellenv)
-
+if [[ -n "$processor" ]]; then
+    echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.profile
+else
+    echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.zprofile
+    eval $(/opt/homebrew/bin/brew shellenv)
+fi
 #
 # install all the things
 ./brew.sh

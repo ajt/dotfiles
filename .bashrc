@@ -1,10 +1,11 @@
+BREW_PREFIX=$(brew --prefix)
 [ -n "$PS1" ] && source ~/.bash_profile
 
 
-alias pip=/usr/local/bin/pip3
-export PATH=/usr/local/opt/python/libexec/bin:$PATH
-alias vi=/usr/local/bin/vim
+alias pip="${BREW_PREFIX}/bin/pip3"
+export PATH="${BREW_PREFIX}/opt/python/libexec/bin:$PATH"
+alias vi="${BREW_PREFIX}/bin/vim"
  
 export CPATH=`xcrun --show-sdk-path`/usr/include
 
-complete -C /usr/local/bin/terraform terraform
+complete -C "${BREW_PREFIX}/usr/local/bin/terraform terraform"

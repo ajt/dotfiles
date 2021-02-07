@@ -68,7 +68,7 @@ fi;
 source "$(brew --prefix)/etc/bash_completion.d/brew"
 
 # Enable tab completion for `g` by marking it as an alias for `git`
-if type _git &> /dev/null && [ -f /usr/local/etc/bash_completion.d/git-completion.bash ]; then
+if type _git &> /dev/null && [ -f "${BREW_PREFIX}/etc/bash_completion.d/git-completion.bash" ]; then
     complete -o default -o nospace -F _git g;
 fi;
 
@@ -98,11 +98,11 @@ source ~/code/z/z.sh
 
 
 [[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm" # Load RVM into a shell session *as a function*
-export PATH=/usr/local/opt/python/libexec/bin:$PATH
+export PATH="${BREW_PREFIX}/opt/python/libexec/bin:$PATH"
 
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$HOME/Devel
-source /usr/local/bin/virtualenvwrapper.sh
-export PATH="/usr/local/sbin:$PATH"
-alias python3=/usr/local/bin/python3
-export PATH="/usr/local/opt/libressl/bin:$PATH"
+source "${BREW_PREFIX}/bin/virtualenvwrapper.sh"
+export PATH="${BREW_PREFIX}/sbin:$PATH"
+alias python3="${BREW_PREFIX}/bin/python3"
+export PATH="${BREW_PREFIX}/opt/libressl/bin:$PATH"
