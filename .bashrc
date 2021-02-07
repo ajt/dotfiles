@@ -1,3 +1,6 @@
+if [[ "$(uname -m)" == "arm64" ]]; then
+  export PATH="/opt/homebrew/bin:${PATH}"
+fi
 BREW_PREFIX=$(brew --prefix)
 [ -n "$PS1" ] && source ~/.bash_profile
 
