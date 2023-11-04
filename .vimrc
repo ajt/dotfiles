@@ -24,6 +24,9 @@ endif
 " Required:
 call plug#begin(expand('~/.vim/plugged'))
 
+" Default highlight is better than polyglot
+let g:polyglot_disabled = ['python']
+
 "*****************************************************************************
 "" Plug install packages
 "*****************************************************************************
@@ -48,6 +51,7 @@ Plug 'kien/ctrlp.vim'
 Plug 'gregsexton/MatchTag'
 Plug 'ambv/black'
 Plug 'Valloric/YouCompleteMe'
+Plug 'tomlion/vim-solidity'
 
 if isdirectory('/usr/local/opt/fzf')
   Plug '/usr/local/opt/fzf' | Plug 'junegunn/fzf.vim'
@@ -185,7 +189,7 @@ else
 
   " IndentLine
   let g:indentLine_enabled = 1
-  let g:indentLine_concealcursor = 0
+  " let g:indentLine_concealcursor = 0
   let g:indentLine_char = '┆'
   let g:indentLine_faster = 1
 
@@ -485,8 +489,6 @@ augroup END
 let g:airline#extensions#virtualenv#enabled = 1
 
 " Syntax highlight
-" Default highlight is better than polyglot
-let g:polyglot_disabled = ['python']
 let python_highlight_all = 1
 
 
@@ -550,5 +552,6 @@ let g:ctrlp_custom_ignore = {
   \ 'file': '\v\.(exe|so|dll)$',
   \ }
 
+inoremap <expr> <CR> pumvisible() ? "\<C-Y>" : "\<CR>"
 
 set expandtab
