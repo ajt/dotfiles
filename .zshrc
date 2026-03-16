@@ -1,94 +1,107 @@
-# zmodload zsh/zprof
+# ~/.zshrc — clean zsh config for macOS (2026)
+# No plugin managers. Just zsh doing zsh things.
 
-# history
+# ─── Homebrew ────────────────────────────────────────────────────────
+if [[ "$(uname -m)" == "arm64" ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+else
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+# ─── History ─────────────────────────────────────────────────────────
+HISTFILE=~/.zsh_history
+HISTSIZE=100000
 SAVEHIST=100000
+setopt inc_append_history     # write to history immediately
+setopt share_history          # share across sessions
+setopt hist_ignore_dups       # no consecutive duplicates
+setopt hist_ignore_all_dups   # remove older duplicate
+setopt hist_reduce_blanks     # trim whitespace
+setopt hist_ignore_space      # ignore commands starting with space
 
-# vim bindings
-bindkey -v
+# ─── Key bindings ────────────────────────────────────────────────────
+bindkey -v                    # vim mode
+bindkey '^R' history-incremental-search-backward
+bindkey '^A' beginning-of-line
+bindkey '^E' end-of-line
+bindkey '^P' up-history
+bindkey '^N' down-history
 
+# reduce mode switch delay
+export KEYTIMEOUT=1
 
-# zstyle :compinstall filename '/Users/paulirish/.zshrc'
-# autoload -Uz compinit
-# compinit
+# ─── Completion ──────────────────────────────────────────────────────
+autoload -Uz compinit
+# only regenerate .zcompdump once per day
+if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+  compinit
+else
+  compinit -C
+fi
 
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'  # case insensitive
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*:*:kill:*:processes' list-colors '=(#b) #([0-9]#)*=0=01;31'
 
-fpath=( "$HOME/.zfunctions" $fpath )
+# ─── Options ─────────────────────────────────────────────────────────
+setopt auto_cd                # cd by typing directory name
+setopt auto_pushd             # push dirs onto stack
+setopt pushd_ignore_dups
+setopt correct                # spelling correction for commands
+setopt nocaseglob             # case-insensitive globbing
+setopt extended_glob
+setopt no_beep
 
+# ─── Load dotfiles ───────────────────────────────────────────────────
+for file in ~/.{exports,aliases,functions,extra}; do
+  [[ -r "$file" ]] && source "$file"
+done
+unset file
 
-
-# antigen time!
-source ~/code/antigen/antigen.zsh
-
-# Load the oh-my-zsh's library.
-antigen use oh-my-zsh
-
-
-local b="antigen-bundle"
-
-# Guess what to install when running an unknown command.
-$b command-not-found
-
-# Helper for extracting different types of archives.
-$b extract
-
-# atom editor
-$b atom
-
-# homebrew  - autocomplete on `brew install`
-$b brew
-$b brew-cask
-
-# Tracks your most used directories, based on 'frecency'. 
-$b z
-
-# suggestion as you type
-$b tarruda/zsh-autosuggestions
-
-# nicoulaj's moar completion files for zsh
-# $b zsh-users/zsh-completions src
-
-# Syntax highlighting on the readline
-$b zsh-users/zsh-syntax-highlighting
-
-# colors for all files!
-$b trapd00r/zsh-syntax-highlighting-filetypes
-
-# dont set a theme, because pure does it all
-$b sindresorhus/pure
-
-# history search
-$b zsh-users/zsh-history-substring-search
-
-
-# Tell antigen that you're done.
-antigen apply
-
-
-# bind UP and DOWN arrow keys for history search
-zmodload zsh/terminfo
-bindkey "$terminfo[kcuu1]" history-substring-search-up
-bindkey "$terminfo[kcud1]" history-substring-search-down
-
+# ─── Prompt (pure) ───────────────────────────────────────────────────
+# install: brew install pure
+fpath+=("$(brew --prefix)/share/zsh/site-functions")
+autoload -U promptinit; promptinit
+prompt pure
 export PURE_GIT_UNTRACKED_DIRTY=0
 
-# Automatically list directory contents on `cd`.
-auto-ls () { ls; }
-chpwd_functions=( auto-ls $chpwd_functions )
+# ─── Plugins (manual, no manager needed) ─────────────────────────────
+# install: brew install zsh-autosuggestions zsh-syntax-highlighting
+[[ -f "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
+  source "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+[[ -f "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
+  source "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 
+# ─── z (directory jumping) ───────────────────────────────────────────
+# install: brew install z
+[[ -f "$(brew --prefix)/etc/profile.d/z.sh" ]] && \
+  source "$(brew --prefix)/etc/profile.d/z.sh"
 
-# zprof
+# ─── fzf ─────────────────────────────────────────────────────────────
+# install: brew install fzf && $(brew --prefix)/opt/fzf/install
+[[ -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
 
-# history mgmt
-# http://www.refining-linux.org/archives/49/ZSH-Gem-15-Shared-history/
-setopt inc_append_history
-setopt share_history
+# ─── NVM (lazy load for speed) ──────────────────────────────────────
+export NVM_DIR="$HOME/.nvm"
+nvm() {
+  unset -f nvm node npm npx
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  nvm "$@"
+}
+node() { nvm --version > /dev/null 2>&1; unset -f node; node "$@"; }
+npm()  { nvm --version > /dev/null 2>&1; unset -f npm;  npm "$@"; }
+npx()  { nvm --version > /dev/null 2>&1; unset -f npx;  npx "$@"; }
 
+# ─── Python (uv) ────────────────────────────────────────────────────
+# uv handles venvs and Python versions — no pyenv/virtualenvwrapper needed
+# install: brew install uv
 
-# Load default dotfiles
-source ~/.bash_profile
+# ─── Tailscale ──────────────────────────────────────────────────────
+alias ts="tailscale"
+alias tss="tailscale status"
 
-
-export PATH="$PATH:$HOME/.rvm/bin" # Add RVM to PATH for scripting
-
-autoload -U +X bashcompinit && bashcompinit
-complete -o nospace -C /usr/local/bin/terraform terraform
+# ─── SSH completion from ~/.ssh/config ──────────────────────────────
+[[ -e "$HOME/.ssh/config" ]] && \
+  hosts=($(grep "^Host" ~/.ssh/config | grep -v "[?*]" | cut -d " " -f2)) && \
+  zstyle ':completion:*:hosts' hosts $hosts

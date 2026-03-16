@@ -1,97 +1,88 @@
+#!/bin/bash
+
 # Install command-line tools using Homebrew
+# Last updated: 2026
 
-# Make sure we’re using the latest Homebrew
 brew update
-
-# Upgrade any already-installed formulae
 brew upgrade
 
-BREW_PREFIX=$(brew --prefix)
+PACKAGES=(
+  # ─── GNU core utilities ────────────────────────────────────────────
+  coreutils findutils gnu-sed gnu-tar grep gawk
 
+  # ─── Shell & prompt ────────────────────────────────────────────────
+  zsh
+  zsh-autosuggestions
+  zsh-syntax-highlighting
+  pure                        # minimal zsh prompt
 
-# Install GNU core utilities (those that come with OS X are outdated)
-# Don’t forget to add `$(brew --prefix coreutils)/libexec/gnubin` to `$PATH`.
-brew install coreutils
-ln -s "${BREW_PREFIX}/bin/gsha256sum" "${BREW_PREFIX}/bin/sha256sum"
+  # ─── Modern CLI replacements ───────────────────────────────────────
+  ripgrep                     # rg > grep/ag/ack
+  fd                          # fd > find
+  fzf                         # fuzzy finder
+  bat                         # bat > cat
+  eza                         # eza > ls
+  delta                       # better git diffs
+  btop                        # btop > htop
+  ncdu                        # disk usage
+  gdu                         # fast disk usage (Go)
+  tree
+  jq                          # JSON processor
 
-# Install some other useful utilities like `sponge`
-brew install moreutils
-# Install GNU `find`, `locate`, `updatedb`, and `xargs`, `g`-prefixed
-brew install findutils
-# Install GNU `sed`, overwriting the built-in `sed`
-brew install gnu-sed
+  # ─── Git ───────────────────────────────────────────────────────────
+  git
+  gh                          # GitHub CLI
+  git-lfs
 
+  # ─── Python ────────────────────────────────────────────────────────
+  python
+  uv                          # fast Python package manager
 
-# Install Bash 4
-# Note: don’t forget to add `/usr/local/bin/bash` to `/etc/shells` before running `chsh`.
-brew install bash
-brew install bash-completion
+  # ─── Node ──────────────────────────────────────────────────────────
+  # node managed via nvm, but install nvm:
+  nvm
 
-# Switch to using brew-installed bash as default shell
-if ! fgrep -q "${BREW_PREFIX}/bin/bash" /etc/shells; then
-  echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells;
-  chsh -s "${BREW_PREFIX}/bin/bash";
-fi;
+  # ─── Editors & tmux ────────────────────────────────────────────────
+  vim
+  tmux
+  tmuxinator
 
+  # ─── Networking & Security ─────────────────────────────────────────
+  wget
+  curl
+  ssh-copy-id
+  tailscale
+  nmap
+  gnupg
 
-# generic colouriser  http://kassiopeia.juls.savba.sk/~garabik/software/grc/
-brew install grc
-brew install gnupg
+  # ─── Files & Media ────────────────────────────────────────────────
+  imagemagick
+  ffmpeg
+  p7zip
+  rename
+  pv                          # pipe viewer (progress)
+  zstd
 
+  # ─── Database ──────────────────────────────────────────────────────
+  sqlite
+  libpq                       # PostgreSQL client libs (psycopg2 builds — no local server)
 
-# Install wget with IRI support
-brew install wget
+  # ─── Build tools ──────────────────────────────────────────────────
+  cmake
 
-# Install more recent versions of some OS X tools
-brew install vim
-brew install grep
-brew install screen
-# brew install z # let me handle this
-brew install entr
-brew install hub
+  # ─── Directory jumping ────────────────────────────────────────────
+  z
 
-# mtr - ping & traceroute. best.
-brew install mtr
+  # ─── Misc ─────────────────────────────────────────────────────────
+  grc                         # generic coloriser
+  entr                        # run commands on file changes
+  watch
+  shellcheck                  # shell script linter
+)
 
-    # allow mtr to run without sudo
-    mtrlocation=$(brew info mtr | grep Cellar | sed -e 's/ (.*//') #  e.g. `/Users/paulirish/.homebrew/Cellar/mtr/0.86`
-    sudo chmod 4755 $mtrlocation/sbin/mtr
-    sudo chown root $mtrlocation/sbin/mtr
+brew install "${PACKAGES[@]}"
 
+# fzf post-install (keybindings and completion)
+$(brew --prefix)/opt/fzf/install --all --no-bash --no-fish
 
-# Install other useful binaries
-brew install the_silver_searcher
-brew install fzf
-brew install ack
-brew install git
-brew install gs
-brew install p7zip
-
-brew install imagemagick
-brew install node # This installs `npm` too using the recommended installation method
-brew install pv
-brew install rename
-brew install tree
-brew install zopfli
-brew install ffmpeg
-brew install terminal-notifier
-brew install pidcat
-brew install ncdu
-
-# more
-brew install python
-brew install htop-osx
-# brew install irssi # goodby sweet prince...
-brew install jpeg
-brew install knock
-brew install p7zip
-brew install sqlite
-brew install ssh-copy-id
-brew install tmux
-brew install tmuxinator
-brew install reattach-to-user-namespace
-
-# Remove outdated versions from the cellar
-brew cleanup
-
-
+echo "Done. Don't forget to run brew-cask.sh for GUI apps."

@@ -1,35 +1,51 @@
+[user]
+	name = ajt
+	email = github@thorntonindustries.com
+
 [alias]
 	c = commit -am
+	s = status -s
+	co = checkout
+	cb = checkout -b
 	up = pull
 	p = push
-	s = status -s
-	df = diff --color --color-words --abbrev
+	df = diff
 	lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --
-	co = checkout
-
-	# Show the diff between the latest commit and the current state
 	d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
 
-	# Merge GitHub pull request on top of the `master` branch
-	mpr = "!f() { \
-		if [ $(printf \"%s\" \"$1\" | grep '^[0-9]\\+$' > /dev/null; printf $?) -eq 0 ]; then \
-			git fetch origin refs/pull/$1/head:pr/$1 && \
-			git rebase master pr/$1 && \
-			git checkout master && \
-			git merge pr/$1 && \
-			git branch -D pr/$1 && \
-			git commit --amend -m \"$(git log -1 --pretty=%B)\n\nCloses #$1.\"; \
-		fi \
-	}; f"
+	# recent branches
+	recent = branch --sort=-committerdate --format='%(committerdate:relative)%09%(refname:short)'
 
+	# undo last commit (keep changes staged)
+	undo = reset --soft HEAD~1
 
+	# amend without editing message
+	amend = commit --amend --no-edit
+
+	# list aliases
+	aliases = config --get-regexp alias
+
+[core]
+	excludesfile = ~/.gitignore_global
+	# use delta for paging diffs (falls back to less if delta not installed)
+	pager = "delta 2>/dev/null || less"
+
+[interactive]
+	diffFilter = "delta --color-only 2>/dev/null || cat"
+
+[delta]
+	navigate = true
+	side-by-side = true
+	line-numbers = true
+
+[merge]
+	conflictstyle = zdiff3
+
+[diff]
+	colorMoved = default
 
 [color]
 	ui = always
-
-[core]
-	excludesfile = ~/.gitignore
-	attributesfile = ~/.gitattributes
 [color "branch"]
 	current = yellow reverse
 	local = yellow
@@ -43,41 +59,27 @@
 	added = yellow
 	changed = green
 	untracked = cyan
-[merge]
-    tool = opendiff
 
+[push]
+	default = current
+	autoSetupRemote = true   # auto set upstream on first push
 
-# rewrites
-[url "git@github.com:"]
-	insteadOf = "gh:"
-	insteadOf = "git://github.com"
-	pushInsteadOf = "github:"
-	pushInsteadOf = "git://github.com/"
-    pushInsteadOf = "https://github.com/"
-[url "git@gist.github.com:"]
-	insteadOf = "gst:"
-	pushInsteadOf = "gist:"
-	pushInsteadOf = "git://gist.github.com/"
-	pushInsteadOf = "https://gist.github.com/"
+[pull]
+	rebase = true
 
+[init]
+	defaultBranch = main
 
-# Any GitHub repo with my username should be checked out r/w by default
-# http://rentzsch.tumblr.com/post/564806957/public-but-hackable-git-submodules
-
-[url "git@github.com:ajt/"]
-  insteadOf = "git://github.com/ajt/"
 [help]
 	autocorrect = 1
 
-# push easily. http://stackoverflow.com/a/23918418/89484
-[push]
-	default = current
+[url "git@github.com:"]
+	insteadOf = "gh:"
+	pushInsteadOf = "https://github.com/"
 
-
+[url "git@github.com:ajt/"]
+	insteadOf = "git://github.com/ajt/"
 
 [include]
-  # For username / github token / etc
-  path = ~/.gitconfig.local
-[user]
-	name = ajt
-	email = github@thorntonindustries.com
+	# machine-specific: credentials, tokens, signing
+	path = ~/.gitconfig.local
