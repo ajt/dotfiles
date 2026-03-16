@@ -1,18 +1,67 @@
-brew install --cask 1password
-brew install --cask iterm2
-brew install --cask spotify
-brew install --cask karabiner-elements
-brew install --cask electric-sheep
-brew install --cask evernote
-brew install --cask skitch
-brew install --cask mailmate
-brew tap homebrew/cask-fonts
-brew install font-inconsolata
-brew install font-inconsolata-for-powerline
-brew install font-inconsolata-for-powerline-bold
-brew install --cask postgres
-brew install --cask postico
-brew install --cask vlc
-brew install --cask sublime-text
-brew install --cask imagealpha
-brew install --cask imageoptim
+#!/bin/bash
+
+# GUI applications via Homebrew Cask
+# Last updated: 2026
+
+CASKS=(
+  # ─── Terminal & Dev ────────────────────────────────────────────────
+  ghostty                     # terminal emulator (tmux-friendly)
+  docker
+
+  # ─── Productivity ──────────────────────────────────────────────────
+  1password
+  raycast                     # Spotlight replacement
+  hazel                       # automated file organization
+  slack
+
+  # ─── Email ────────────────────────────────────────────────────────
+  mailmate
+
+  # ─── Dev Tools ────────────────────────────────────────────────────
+  datagrip                    # JetBrains database IDE
+  balsamiq-wireframes         # mockups / wireframing
+  macdown                     # Markdown editor (note: cask sunsets Sep 2026)
+
+  # ─── VPN ──────────────────────────────────────────────────────────
+  protonvpn
+
+  # ─── Media ─────────────────────────────────────────────────────────
+  spotify
+  vlc
+
+  # ─── Keyboard ──────────────────────────────────────────────────────
+  karabiner-elements
+
+  # ─── Fonts ─────────────────────────────────────────────────────────
+  font-jetbrains-mono-nerd-font
+  font-inconsolata-nerd-font
+)
+
+brew install --cask "${CASKS[@]}"
+
+
+# ─── Mac App Store apps (via mas) ───────────────────────────────────
+# install mas first: brew install mas
+# you must be signed into the App Store for this to work
+brew install mas
+
+MAS_APPS=(
+  1474335294   # GoodLinks
+  1091189122   # Bear
+)
+
+echo "Installing Mac App Store apps..."
+for app in "${MAS_APPS[@]}"; do
+  mas install "$app"
+done
+
+
+# ─── Manual installs ────────────────────────────────────────────────
+# OmniGraffle 6 — no cask available (cask installs v7)
+#   Install from saved DMG or https://www.omnigroup.com/download/latest/omnigraffle/6
+echo ""
+echo "Manual installs needed:"
+echo "  • OmniGraffle 6 — download from omnigroup.com/download/latest/omnigraffle/6"
+
+echo ""
+echo "Done. GUI apps installed."

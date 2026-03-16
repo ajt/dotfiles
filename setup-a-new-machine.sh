@@ -1,140 +1,220 @@
-# copy paste this file in bit by bit.
-# don't run it.
-  echo "do not run this script in one go. hit ctrl-c NOW"
+# Copy paste this file in bit by bit.
+# Don't run it as a script.
+  echo "Do not run this script in one go. Hit ctrl-c NOW"
   read -n 1
 
 
+##############################################################################################################
+### Rosetta 2 (for Apple Silicon)
 
-OLDIFS=$IFS
-IFS='.' read osvers_major osvers_minor osvers_dot_version <<< "$(/usr/bin/sw_vers -productVersion)"
-IFS=$OLDIFS
-
-if [[ ${osvers_major} -ge 11 ]]; then
-
-  # Check to see if the Mac needs Rosetta installed by testing the processor
-
-  processor=$(/usr/sbin/sysctl -n machdep.cpu.brand_string | grep -o "Intel")
-  
-  if [[ -n "$processor" ]]; then
-    echo "$processor processor installed. No need to install Rosetta."
+if [[ "$(uname -m)" == "arm64" ]]; then
+  if ! /usr/bin/pgrep -q oahd; then
+    echo "Installing Rosetta 2..."
+    /usr/sbin/softwareupdate --install-rosetta --agree-to-license
   else
-
-    # Check Rosetta LaunchDaemon. If no LaunchDaemon is found,
-    # perform a non-interactive install of Rosetta.
-    
-    if [[ ! -f "/Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist" ]]; then
-        /usr/sbin/softwareupdate --install-rosetta --agree-to-license
-       
-        if [[ $? -eq 0 ]]; then
-        	echo "Rosetta has been successfully installed."
-        else
-        	echo "Rosetta installation failed!"
-        	exitcode=1
-        fi
-   
-    else
-    	echo "Rosetta is already installed. Nothing to do."
-    fi
+    echo "Rosetta 2 is already installed."
   fi
+fi
+
+
+##############################################################################################################
+### Backup from old machine
+### (run this on the OLD machine first, then transfer ~/migration to the new one)
+
+dest="$HOME/migration"
+mkdir -p "$dest"
+
+cp ~/.extra "$dest/" 2>/dev/null
+cp ~/.gitignore_global "$dest/" 2>/dev/null
+cp ~/.z "$dest/" 2>/dev/null
+cp ~/.zsh_history "$dest/" 2>/dev/null
+cp ~/.bash_history "$dest/" 2>/dev/null
+cp -r ~/.ssh "$dest/"
+cp -r ~/.gnupg "$dest/" 2>/dev/null
+cp -r ~/.tmuxinator "$dest/" 2>/dev/null
+
+# .config (app configs not tracked in dotfiles repo)
+cp -r ~/.config "$dest/" 2>/dev/null
+
+# wifi passwords
+sudo cp /Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist "$dest/"
+
+# MailMate (key bindings, smart mailboxes, preferences)
+mkdir -p "$dest/MailMate"
+cp -r ~/Library/Application\ Support/MailMate/ "$dest/MailMate/" 2>/dev/null
+cp ~/Library/Preferences/com.freron.MailMate.plist "$dest/MailMate/" 2>/dev/null
+
+# Hazel (folder rules and preferences)
+mkdir -p "$dest/Hazel"
+cp -r ~/Library/Application\ Support/Hazel/ "$dest/Hazel/" 2>/dev/null
+cp ~/Library/Preferences/com.noodlesoft.Hazel.plist "$dest/Hazel/" 2>/dev/null
+
+# brew leaves for comparison
+brew leaves > "$dest/brew-list.txt" 2>/dev/null
+npm list -g --depth=0 > "$dest/npm-g-list.txt" 2>/dev/null
+
+echo "Backup complete in $dest"
+echo "Transfer this to the new machine and continue below."
+
+
+##############################################################################################################
+### XCode Command Line Tools
+
+if ! xcode-select --print-path &>/dev/null; then
+  echo "Installing XCode Command Line Tools..."
+  xcode-select --install
+  echo "Wait for installation to complete, then continue."
+  read -p "Press enter when done..."
+fi
+
+
+##############################################################################################################
+### Homebrew
+
+if ! command -v brew &>/dev/null; then
+  echo "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  # add to PATH immediately
+  if [[ "$(uname -m)" == "arm64" ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
   else
-    echo "Mac is running macOS $osvers_major.$osvers_minor.$osvers_dot_version."
-    echo "No need to install Rosetta on this version of macOS."
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
 fi
 
-
-
-##
-## BACKUPS
-##
-
-dest="/Users/ajt/migration" # make this and ./~
-cp ~/.extra $dest
-cp ~/.z $dest
-cp -r ~/.ssh $dest
-cp ~/.gnupg $dest
-cp -r ~/.tmuxinator $dest
-cp /Volumes/Macintosh\ HD/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist $dest  # wifi
-cp ~/Library/Preferences/net.limechat.LimeChat.plist $dest
-cp ~/Library/Services $dest # automator stuff
-cp -r ~/Documents $dest
-cp -r ~/Desktop $dest
-cp ~/.bash_history $dest # back it up for fun?
-tar cf ~/migration.tar $dest
-
-##
-## new machine setup.
-##
-
-sudo softwareupdate --install-rosetta
-
-#
-# homebrew!
-#
-# (google machines are funny so i have to do this. everyone else should use the regular thang)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-if [[ -n "$processor" ]]; then
-    echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.profile
-else
-    echo 'eval $(/opt/homebrew/bin/brew shellenv)' >> /Users/ajt/.zprofile
-    eval $(/opt/homebrew/bin/brew shellenv)
-fi
-#
-# install all the things
+# install all packages
+chmod +x brew.sh brew-cask.sh
 ./brew.sh
 ./brew-cask.sh
 
 
-#VIM DISTRO?!?
+##############################################################################################################
+### Shell setup
+
+# set zsh (Homebrew's, not system) as default shell
+ZSHPATH="$(brew --prefix)/bin/zsh"
+if ! grep -q "$ZSHPATH" /etc/shells; then
+  echo "$ZSHPATH" | sudo tee -a /etc/shells
+fi
+chsh -s "$ZSHPATH"
 
 
-# github.com/jamiew/git-friendly
-# the `push` command which copies the github compare URL to my clipboard is heaven
-# bash < <( curl https://raw.github.com/jamiew/git-friendly/master/install.sh)
+##############################################################################################################
+### Node (via nvm)
 
+export NVM_DIR="$HOME/.nvm"
+mkdir -p "$NVM_DIR"
+[ -s "$(brew --prefix)/opt/nvm/nvm.sh" ] && . "$(brew --prefix)/opt/nvm/nvm.sh"
+nvm install --lts
+nvm use --lts
 
-# Type `git open` to open the GitHub page or website for a repository.
+# global npm packages
 npm install -g git-open
-
-# Install virtualenvwrapper
-pip3 install virtualenvwrapper
-
-# github.com/rupa/z   - oh how i love you
-git clone https://github.com/rupa/z.git ~/code/z
-chmod +x ~/code/z/z.sh
-# consider reusing your current .z file if possible. it's painful to rebuild :)
-# z hooked up in .bash_profile
+npm install -g trash-cli
 
 
-# disable itunes opening on media keys
-git clone https://github.com/thebitguru/play-button-itunes-patch ~/code/play-button-itunes-patch
+##############################################################################################################
+### Python (via uv)
+
+# uv is already installed via brew.sh
+# create a default Python environment if needed
+uv python install 3.12
 
 
-# for the c alias (syntax highlighted cat)
-pip3 install Pygments
+##############################################################################################################
+### Git setup
 
-# GIVE ME POWERLINE
-pip3 install powerline-status
+# git-friendly: the `push` command that copies compare URL is great
+# bash < <(curl https://raw.github.com/jamiew/git-friendly/master/install.sh)
 
-# WHAT IS RUBY?!?!
-curl -L https://get.rvm.io | bash
+# set up delta (already installed via brew.sh, configured in .gitconfig)
 
-# HOW ABOUT TMUXINATOR?
-gem install tmuxinator
-mkdir ~/.bin/
-curl -L -o ~/.bin/tmuxinator.bash https://raw.github.com/aziz/tmuxinator/master/completion/tmuxinator.bash
+# restore git credentials
+# cp ~/migration/.gitconfig.local ~/.gitconfig.local
 
 
-# change to bash 4 (installed by homebrew)
-BASHPATH=$(brew --prefix)/bin/bash
-sudo echo $BASHPATH >> /etc/shells
-chsh -s $BASHPATH # will set for current user only.
-echo $BASH_VERSION # should be 4.x not the old 3.2.X
+##############################################################################################################
+### Restore from backup
 
-sh .osx
+if [ -d "$HOME/migration" ]; then
+  echo "Restoring from migration backup..."
+
+  # SSH keys
+  [ -d ~/migration/.ssh ] && cp -r ~/migration/.ssh ~/.ssh && chmod 700 ~/.ssh && chmod 600 ~/.ssh/*
+
+  # GPG keys
+  [ -d ~/migration/.gnupg ] && cp -r ~/migration/.gnupg ~/.gnupg
+
+  # shell history
+  [ -f ~/migration/.zsh_history ] && cp ~/migration/.zsh_history ~/.zsh_history
+  [ -f ~/migration/.z ] && cp ~/migration/.z ~/.z
+
+  # extra (secrets, local PATH, etc)
+  [ -f ~/migration/.extra ] && cp ~/migration/.extra ~/.extra
+  [ -f ~/migration/.gitignore_global ] && cp ~/migration/.gitignore_global ~/.gitignore_global
+
+  # tmuxinator layouts
+  [ -d ~/migration/.tmuxinator ] && cp -r ~/migration/.tmuxinator ~/.tmuxinator
+
+  # .config (app configs)
+  [ -d ~/migration/.config ] && cp -r ~/migration/.config ~/.config
+
+  # MailMate (run after MailMate has been opened once to create its dirs)
+  if [ -d ~/migration/MailMate ]; then
+    echo "  MailMate config found. Open MailMate once first, then run:"
+    echo "    cp -r ~/migration/MailMate/KeyBindings/ ~/Library/Application\ Support/MailMate/KeyBindings/"
+    echo "    cp ~/migration/MailMate/com.freron.MailMate.plist ~/Library/Preferences/"
+  fi
+
+  # Hazel (run after Hazel has been opened once)
+  if [ -d ~/migration/Hazel ]; then
+    echo "  Hazel config found. Open Hazel once first, quit it, then run:"
+    echo "    cp -r ~/migration/Hazel/ ~/Library/Application\ Support/Hazel/"
+    echo "    cp ~/migration/Hazel/com.noodlesoft.Hazel.plist ~/Library/Preferences/"
+  fi
+
+  echo "Restore complete. Check ~/migration for anything else you need."
+fi
 
 
-# symlinks!
-#   put/move git credentials into ~/.gitconfig.local
-#   http://stackoverflow.com/a/13615531/89484
+##############################################################################################################
+### Claude Code
+
+# install via npm (already have node from nvm above)
+npm install -g @anthropic-ai/claude-code
+
+
+##############################################################################################################
+### Tailscale
+
+# installed via brew cask or from Mac App Store
+# authenticate:
+#   tailscale up
+
+
+##############################################################################################################
+### macOS defaults
+
+# only run the subset you actually want — the old .osx file was 39KB of mostly broken defaults
+# see .macos for the curated set
+[ -f .macos ] && sh .macos
+
+
+##############################################################################################################
+### Symlinks
+
 ./symlink-setup.sh
 
+echo ""
+echo "┌──────────────────────────────────────┐"
+echo "│  Setup complete!                     │"
+echo "│                                      │"
+echo "│  Don't forget:                       │"
+echo "│  • Copy .gitconfig.local             │"
+echo "│  • Set up .extra with secrets/PATHs  │"
+echo "│  • tailscale up                      │"
+echo "│  • Log into 1Password, Spotify, etc  │"
+echo "│  • Import GPG keys if needed         │"
+echo "│  • Restart terminal                  │"
+echo "└──────────────────────────────────────┘"
