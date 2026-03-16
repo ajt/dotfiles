@@ -179,21 +179,6 @@ fi
 
 
 ##############################################################################################################
-### Claude Code
-
-# install via npm (already have node from nvm above)
-npm install -g @anthropic-ai/claude-code
-
-
-##############################################################################################################
-### Tailscale
-
-# installed via brew cask or from Mac App Store
-# authenticate:
-#   tailscale up
-
-
-##############################################################################################################
 ### macOS defaults
 
 # only run the subset you actually want — the old .osx file was 39KB of mostly broken defaults
