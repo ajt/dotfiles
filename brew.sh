@@ -78,6 +78,7 @@ PACKAGES=(
   entr                        # run commands on file changes
   watch
   shellcheck                  # shell script linter
+  stats
 )
 
 brew install "${PACKAGES[@]}"
