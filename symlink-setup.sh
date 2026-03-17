@@ -55,6 +55,7 @@ done
 mkdir -p "$HOME/.config"
 
 CONFIG_DIRS=(
+  ghostty
   karabiner
 )
 
