@@ -14,6 +14,7 @@ FILES=(
   .gitconfig
   .gitignore
   .inputrc
+  .tmux
   .tmux.conf
   .vimrc
   .dircolors
