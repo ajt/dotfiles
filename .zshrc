@@ -66,6 +66,10 @@ autoload -U promptinit; promptinit
 prompt pure
 export PURE_GIT_UNTRACKED_DIRTY=0
 
+# Always show user@host in prompt (Pure only shows it for SSH/root by default)
+prompt_pure_state[user_color]=user
+psvar[13]=1
+
 # ─── Plugins (manual, no manager needed) ─────────────────────────────
 # install: brew install zsh-autosuggestions zsh-syntax-highlighting
 [[ -f "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
