@@ -14,7 +14,28 @@ alias mv="mv -i"
 # ─── Modern replacements ────────────────────────────────────────────
 # eza > ls (install: brew install eza)
 if command -v eza &>/dev/null; then
-  alias ls="eza --icons --group-directories-first"
+  # wrapper that translates common GNU ls flags to eza
+  ls() {
+    local eza_args=("--icons" "--group-directories-first")
+    local paths=()
+    for arg in "$@"; do
+      case "$arg" in
+        -*t*|*r*t*|*t*r*)
+          # any flag combo containing t (sort by time) → translate
+          [[ "$arg" == *a* ]] && eza_args+=("-a")
+          [[ "$arg" == *l* ]] && eza_args+=("-l")
+          # eza sorts newest-first by default (opposite of ls -t)
+          # so -r in ls -lrt means "newest last" → no --reverse needed
+          # only add --reverse when there's NO -r (newest first)
+          [[ "$arg" != *r* ]] && eza_args+=("--reverse")
+          eza_args+=("--sort=modified")
+          ;;
+        -*) eza_args+=("$arg") ;;
+        *)  paths+=("$arg") ;;
+      esac
+    done
+    command eza "${eza_args[@]}" "${paths[@]}"
+  }
   alias la="eza -la --icons --group-directories-first"
   alias ll="eza -l --icons --group-directories-first"
   alias lt="eza --tree --level=2 --icons"
@@ -30,10 +51,7 @@ if command -v bat &>/dev/null; then
   alias cat="bat --paging=never"
 fi
 
-# ripgrep > grep/ag/ack
-if command -v rg &>/dev/null; then
-  alias grep="rg"
-fi
+# ripgrep — use `rg` directly; aliasing grep breaks scripts expecting GNU grep flags
 
 # ─── Git ─────────────────────────────────────────────────────────────
 alias g="git"
