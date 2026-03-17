@@ -20,7 +20,7 @@ if command -v eza &>/dev/null; then
     local paths=()
     for arg in "$@"; do
       case "$arg" in
-        -*t*|*r*t*|*t*r*)
+        -*t*|-*r*t*|-*t*r*)
           # any flag combo containing t (sort by time) → translate
           [[ "$arg" == *a* ]] && eza_args+=("-a")
           [[ "$arg" == *l* ]] && eza_args+=("-l")
