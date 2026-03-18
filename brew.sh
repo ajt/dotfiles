@@ -79,7 +79,7 @@ PACKAGES=(
   watch
   shellcheck                  # shell script linter
   stats
-  imageflow
+  flowvision
 )
 
 brew install "${PACKAGES[@]}"
