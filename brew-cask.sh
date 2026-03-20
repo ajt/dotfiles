@@ -10,7 +10,6 @@ CASKS=(
 
   # ─── Productivity ──────────────────────────────────────────────────
   1password
-  raycast                     # Spotlight replacement
   hazel                       # automated file organization
   slack
 
