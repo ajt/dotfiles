@@ -37,6 +37,15 @@ sh .macos
 # 6. Restart terminal
 ```
 
+## Zsh plugins
+
+Plugins are sourced explicitly in `.zshrc` — no plugin manager.
+
+- **zsh-autosuggestions** — inline command suggestions (Homebrew)
+- **zsh-syntax-highlighting** — command syntax coloring (Homebrew)
+- **zsh-history-substring-search** — filtered history navigation (Homebrew)
+- **[zsh-claude-code-shell](https://github.com/ArielTM/zsh-claude-code-shell)** — type `# natural language` and press Enter to generate a shell command via Claude Code CLI (git submodule in `zsh-plugins/`)
+
 ## Key tools
 
 | Old | New |

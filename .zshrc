@@ -85,6 +85,10 @@ psvar[13]=1
 [[ -f "$(brew --prefix)/share/zsh-history-substring-search/zsh-history-substring-search.zsh" ]] && \
   source "$(brew --prefix)/share/zsh-history-substring-search/zsh-history-substring-search.zsh"
 
+# ─── Claude Code shell (natural language → commands) ──────────────
+CLAUDE_PLUGIN="$HOME/Projects/dotfiles/zsh-plugins/zsh-claude-code-shell/zsh-claude-code-shell.plugin.zsh"
+[[ -f "$CLAUDE_PLUGIN" ]] && source "$CLAUDE_PLUGIN"
+
 # ─── z (directory jumping) ───────────────────────────────────────────
 # install: brew install z
 [[ -f "$(brew --prefix)/etc/profile.d/z.sh" ]] && \
