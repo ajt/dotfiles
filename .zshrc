@@ -24,8 +24,13 @@ bindkey -v                    # vim mode
 bindkey '^R' history-incremental-search-backward
 bindkey '^A' beginning-of-line
 bindkey '^E' end-of-line
-bindkey '^P' up-history
-bindkey '^N' down-history
+# history substring search (up/down filter by current input)
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+bindkey '^P' history-substring-search-up
+bindkey '^N' history-substring-search-down
+bindkey -M vicmd 'k' history-substring-search-up
+bindkey -M vicmd 'j' history-substring-search-down
 
 # reduce mode switch delay
 export KEYTIMEOUT=1
@@ -76,6 +81,9 @@ psvar[13]=1
   source "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 [[ -f "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
   source "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+# must be sourced after zsh-syntax-highlighting
+[[ -f "$(brew --prefix)/share/zsh-history-substring-search/zsh-history-substring-search.zsh" ]] && \
+  source "$(brew --prefix)/share/zsh-history-substring-search/zsh-history-substring-search.zsh"
 
 # ─── z (directory jumping) ───────────────────────────────────────────
 # install: brew install z
@@ -109,3 +117,7 @@ alias tss="tailscale status"
 [[ -e "$HOME/.ssh/config" ]] && \
   hosts=($(grep "^Host" ~/.ssh/config | grep -v "[?*]" | cut -d " " -f2)) && \
   zstyle ':completion:*:hosts' hosts $hosts
+
+# ─── OLLAMA MEMORY FOOTPRINT ──────────────────────────────
+export OLLAMA_FLASH_ATTENTION="1"
+export OLLAMA_KV_CACHE_TYPE="q8_0"

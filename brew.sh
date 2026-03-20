@@ -14,6 +14,7 @@ PACKAGES=(
   zsh
   zsh-autosuggestions
   zsh-syntax-highlighting
+  zsh-history-substring-search
   pure                        # minimal zsh prompt
 
   # ─── Modern CLI replacements ───────────────────────────────────────

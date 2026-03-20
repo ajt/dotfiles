@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Check if an argument was provided
+if [ -z "$1" ]; then
+  echo "Usage: llmsize <parameters_in_billions>"
+  echo "Example: llmsize 32"
+  echo "Example: llmsize 70B"
+  exit 1
+fi
+
+# Strip out any letters (like 'B' or 'b') to just get the number
+PARAMS=$(echo "$1" | sed 's/[^0-9.]//g')
+
+if [ -z "$PARAMS" ]; then
+  echo "Error: Please provide a valid number."
+  exit 1
+fi
+
+# Calculate base weight footprints
+UNCOMPRESSED=$(awk "BEGIN {print $PARAMS * 2}")
+Q8=$(awk "BEGIN {print $PARAMS * 1}")
+Q4=$(awk "BEGIN {print $PARAMS * 0.5}")
+
+# Add a standard 2GB KV cache overhead for a realistic active footprint
+Q8_REAL=$(awk "BEGIN {print $Q8 + 2}")
+Q4_REAL=$(awk "BEGIN {print $Q4 + 2}")
+
+# Print the formatted output
+echo ""
+echo "🧠 LLM Memory Estimator (${PARAMS}B Parameters)"
+echo "--------------------------------------------------"
+echo "Uncompressed (FP16) : ~${UNCOMPRESSED} GB (Weights only)"
+echo ""
+echo "Active RAM Estimates (Includes ~2GB KV Cache):"
+echo "  8-bit (Q8)        : ~${Q8_REAL} GB"
+echo "  4-bit (Q4)        : ~${Q4_REAL} GB"
+echo "--------------------------------------------------"
+
+# Hardware check against the ~96GB macOS GPU allocation ceiling
+if (( $(echo "$Q8_REAL > 96" | bc -l) )); then
+  echo "⚠️  Note: The Q8 quant exceeds the default 96GB macOS GPU memory limit."
+  echo "   You will need to use a Q4/Q6 quant, or manually increase"
+  echo "   the sysctl iogpu.wired_limit_mb allocation."
+else
+  echo "✅  This will fit comfortably within default hardware limits."
+fi
+echo ""
