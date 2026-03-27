@@ -125,3 +125,6 @@ alias tss="tailscale status"
 # ─── OLLAMA MEMORY FOOTPRINT ──────────────────────────────
 export OLLAMA_FLASH_ATTENTION="1"
 export OLLAMA_KV_CACHE_TYPE="q8_0"
+
+unsetopt correct
+unsetopt correct_all
