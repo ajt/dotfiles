@@ -77,6 +77,7 @@ psvar[13]=1
 
 # ─── Plugins (manual, no manager needed) ─────────────────────────────
 # install: brew install zsh-autosuggestions zsh-syntax-highlighting
+ZSH_AUTOSUGGEST_MANUAL_REBIND=1  # don't re-wrap widgets on every precmd (breaks claude-code-shell)
 [[ -f "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
   source "$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 [[ -f "$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
