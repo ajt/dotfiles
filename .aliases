@@ -101,3 +101,4 @@ alias fs="stat -f '%z bytes'"
 
 # ─── Misc typos ──────────────────────────────────────────────────────
 alias brwe=brew
+alias clod="$HOME/projects/clodpod/clod"
