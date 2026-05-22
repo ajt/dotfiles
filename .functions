@@ -102,20 +102,34 @@ shellswitch() {
   chsh -s "$(brew --prefix)/bin/$1"
 }
 
-
 # cwork — spin up a Claude Code worktree session for a GitHub issue.
 #
-#   cwork <issue> [extra instructions...]   run in the current pane
-#   cwork -t <issue> [extra...]             dispatch into a NEW tmux window, stay put
+#   cwork <issue> [extra instructions...]   open the session in a new tmux window
+#   cwork -f <issue> [extra...]             run right here, no tmux
+#   cwork -T file <issue> [extra...]        use a specific prompt template for this run
 #   cwork -b main <issue>                   branch off main instead of dev (default: dev)
 #   cwork -p feature <issue>                force a branch prefix (skip label detection)
 #   cwork -y <issue>                        skip the confirmation prompt
 #   cwork -n <issue>                        dry run: print the plan and exit
 #
-# Self-contained: needs only `gh`, `git`, and your repo's `make worktree-add`.
+# tmux behavior (the default): each run gets its own window.
+#   - inside tmux: a new window is added to the current session, focus stays put
+#     (so you can fire several in a row)
+#   - outside tmux: a session is created (or reused) and you're attached to it
+#
+# Prompt template: the kickoff prompt is rendered from a template file.
+#   Lookup order:  -T <file>  →  $CWORK_TEMPLATE  →  <repo>/.cwork/prompt.md
+#                  →  a built-in fallback ("Please work issue #<n>.")
+#   Placeholders:  {{num}} {{title}} {{branch}} {{url}} {{labels}} {{body}} {{extra}}
+#   Trailing text on the command line fills {{extra}}; if the template has no
+#   {{extra}}, that text is appended instead. ({{body}} is fetched only if used.)
+#
+# Self-contained: needs `gh`, `git`, `tmux`, and your repo's `make worktree-add`.
 #
 # Optional env knobs:
 #   CWORK_YES=1        always skip confirmation
+#   CWORK_SESSION=name session to use when started outside tmux (default: cwork)
+#   CWORK_TEMPLATE=…   default template file (overrides the repo's .cwork/prompt.md)
 #   CWORK_SUFFIX="..." always appended to the prompt, e.g.
 #                      export CWORK_SUFFIX="Open a PR against dev and merge when green."
 
@@ -123,18 +137,19 @@ cwork() {
   emulate -L zsh
   setopt local_options err_return pipe_fail
 
-  local use_tmux=0 assume_yes=0 dry_run=0 force_prefix="" base=""
+  local foreground=0 assume_yes=0 dry_run=0 force_prefix="" base="" opt_template=""
   [[ -n $CWORK_YES ]] && assume_yes=1
 
   local opt
-  while getopts ":tyb:p:nh" opt; do
+  while getopts ":fyb:p:nhT:" opt; do
     case $opt in
-      t) use_tmux=1 ;;
+      f) foreground=1 ;;
       y) assume_yes=1 ;;
       b) base=$OPTARG ;;
       p) force_prefix=$OPTARG ;;
+      T) opt_template=$OPTARG ;;
       n) dry_run=1 ;;
-      h) print -r -- "usage: cwork [-t] [-y] [-n] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
+      h) print -r -- "usage: cwork [-f] [-y] [-n] [-T template] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
       \?) print -u2 -- "cwork: unknown option -$OPTARG"; return 2 ;;
       :)  print -u2 -- "cwork: -$OPTARG needs an argument"; return 2 ;;
     esac
@@ -150,16 +165,16 @@ cwork() {
   command -v gh >/dev/null || { print -u2 -- "cwork: gh CLI not found"; return 1; }
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || { print -u2 -- "cwork: not inside a git repo"; return 1; }
-  (( use_tmux )) && { [[ -n $TMUX ]] || command -v tmux >/dev/null \
-    || { print -u2 -- "cwork: -t needs tmux"; return 1; }; }
+  (( foreground || dry_run )) || command -v tmux >/dev/null \
+    || { print -u2 -- "cwork: tmux not found (use -f to run without it)"; return 1; }
 
-  # --- fetch issue title, state, labels (one call; gh bundles jq via --jq) ---
+  # --- fetch issue fields (one call; gh bundles jq via --jq) ---
   local data
-  data=$(gh issue view "$num" --json title,state,labels \
-        --jq '[.title, .state, (.labels|map(.name)|join(" "))] | @tsv' 2>/dev/null) \
+  data=$(gh issue view "$num" --json title,state,labels,url \
+        --jq '[.title, .state, (.labels|map(.name)|join(" ")), .url] | @tsv' 2>/dev/null) \
     || { print -u2 -- "cwork: couldn't read issue #$num (exists? authed?)"; return 1; }
-  local title state labels
-  IFS=$'\t' read -r title state labels <<< "$data"
+  local title state labels url
+  IFS=$'\t' read -r title state labels url <<< "$data"
   [[ $state == OPEN ]] || print -u2 -- "cwork: heads up — issue #$num is $state"
 
   # --- build branch name: prefix from labels, slug from title ---
@@ -173,19 +188,50 @@ cwork() {
     esac
   fi
   local slug
-  slug=$(print -r -- "$title" | tr '[:upper:]' '[:lower:]' \
-        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-48 | sed -E 's/-+$//')
+  slug=$(print -r -- "$title" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/^[[:space:]]*(feat|feature|fix|bug|bugfix|hotfix|docs?|chore|refactor|perf|test|build|ci|style|revert|task|enhancement)(\([^)]*\))?[[:space:]]*:[[:space:]]*//' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+        | cut -c1-48 | sed -E 's/-+$//')
   local branch="${prefix}/${num}-${slug}"
+  [[ -n $slug ]] || branch="${prefix}/${num}"
 
-  # --- prompt ---
-  local prompt="Please work issue #${num}."
-  [[ -n $extra ]]        && prompt+=" ${extra}"
-  [[ -n $CWORK_SUFFIX ]] && prompt+=" ${CWORK_SUFFIX}"
+  # --- assemble the kickoff prompt from a template ---
+  local repo tmpl_file tmpl_src template
+  repo=$(git rev-parse --show-toplevel)
+  tmpl_file=${opt_template:-${CWORK_TEMPLATE:-$repo/.cwork/prompt.md}}
+  if [[ -f $tmpl_file ]]; then
+    template=$(<"$tmpl_file"); tmpl_src=$tmpl_file
+  elif [[ -n $opt_template ]]; then
+    print -u2 -- "cwork: template not found: $opt_template"; return 1
+  else
+    template='Please work issue #{{num}}.'; tmpl_src='(built-in)'
+  fi
+
+  local body=""
+  [[ $template == *'{{body}}'* ]] && body=$(gh issue view "$num" --json body --jq '.body' 2>/dev/null)
+
+  local had_extra_ph=0
+  [[ $template == *'{{extra}}'* ]] && had_extra_ph=1
+
+  local prompt=$template
+  prompt=${prompt//'{{num}}'/$num}
+  prompt=${prompt//'{{title}}'/$title}
+  prompt=${prompt//'{{branch}}'/$branch}
+  prompt=${prompt//'{{labels}}'/$labels}
+  prompt=${prompt//'{{url}}'/$url}
+  prompt=${prompt//'{{body}}'/$body}
+  prompt=${prompt//'{{extra}}'/$extra}
+  (( had_extra_ph )) || { [[ -n $extra ]] && prompt+=$'\n\n'"$extra"; }
+  [[ -n $CWORK_SUFFIX ]] && prompt+=$'\n\n'"$CWORK_SUFFIX"
 
   # --- show the plan ---
-  print -r -- "issue   #${num}  [${state}]  ${title}"
-  print -r -- "branch  ${branch}${base:+   (base: $base)}"
-  print -r -- "prompt  ${prompt}"
+  print -r -- "issue     #${num}  [${state}]  ${title}"
+  print -r -- "branch    ${branch}${base:+   (base: $base)}"
+  print -r -- "template  ${tmpl_src}"
+  print -r -- "──── prompt ────"
+  print -r -- "$prompt"
+  print -r -- "────────────────"
   (( dry_run )) && return 0
   if (( ! assume_yes )); then
     print -n -- "proceed? [Y/n] "
@@ -205,13 +251,30 @@ cwork() {
         /^branch /{if(substr($0,8)==b){print p; exit}}')
   [[ -d $wt ]] \
     || { print -u2 -- "cwork: created branch but couldn't locate its worktree"; return 1; }
+  print -- "worktree  ${wt}"
 
-  if (( use_tmux )); then
-    local win=${branch##*/}   # 455-pixelated-images
-    tmux new-window -n "$win" "cd ${(q)wt} && claude ${(q)prompt}; exec ${SHELL:-zsh}"
-    print -- "dispatched to tmux window: ${win}  (${wt})"
-  else
+  if (( foreground )); then
     cd "$wt" && claude "$prompt"
+    return
+  fi
+
+  local win=${branch##*/}                 # 557-bug-make-api-…
+  local sess=${CWORK_SESSION:-cwork}
+  local cmd="cd ${(q)wt} && claude ${(q)prompt}; exec ${SHELL:-zsh}"
+
+  if [[ -n $TMUX ]]; then
+    # already in tmux: add a window to this session, don't steal focus
+    tmux new-window -d -n "$win" "$cmd"
+    print -- "opened tmux window: ${win}"
+  else
+    # not in tmux: ensure a session exists, add the window, attach to it
+    if tmux has-session -t "$sess" 2>/dev/null; then
+      tmux new-window -t "$sess" -n "$win" "$cmd"
+    else
+      tmux new-session -d -s "$sess" -n "$win" "$cmd"
+    fi
+    print -- "attaching to tmux session '${sess}', window: ${win}"
+    tmux attach -t "$sess"
   fi
 }
 
