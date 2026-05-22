@@ -99,16 +99,10 @@ CLAUDE_PLUGIN="$HOME/Projects/dotfiles/zsh-plugins/zsh-claude-code-shell/zsh-cla
 # install: brew install fzf && $(brew --prefix)/opt/fzf/install
 [[ -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
 
-# ─── NVM (lazy load for speed) ──────────────────────────────────────
+# ─── NVM ────────────────────────────────────────────────────────────
 export NVM_DIR="$HOME/.nvm"
-nvm() {
-  unset -f nvm node npm npx
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  nvm "$@"
-}
-node() { nvm --version > /dev/null 2>&1; unset -f node; node "$@"; }
-npm()  { nvm --version > /dev/null 2>&1; unset -f npm;  npm "$@"; }
-npx()  { nvm --version > /dev/null 2>&1; unset -f npx;  npx "$@"; }
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
 
 # ─── Python (uv) ────────────────────────────────────────────────────
 # uv handles venvs and Python versions — no pyenv/virtualenvwrapper needed
@@ -129,3 +123,16 @@ export OLLAMA_KV_CACHE_TYPE="q8_0"
 
 unsetopt correct
 unsetopt correct_all
+export PATH=$PATH:$HOME/.maestro/bin
+export PATH=$PATH:$HOME/.maestro/bin
+
+# bun completions
+[ -s "/Users/ajt/.bun/_bun" ] && source "/Users/ajt/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+export PATH=$PATH:$HOME/.maestro/bin
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
+

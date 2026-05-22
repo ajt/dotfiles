@@ -59,7 +59,7 @@ Plug 'ambv/black'
 "   Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --bin' }
 "   Plug 'junegunn/fzf.vim'
 " endif
-Plug 'github/copilot.vim'
+" Plug 'github/copilot.vim'
 
 let g:make = 'gmake'
 if exists('make')

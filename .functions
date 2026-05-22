@@ -101,3 +101,125 @@ docker-clean() {
 shellswitch() {
   chsh -s "$(brew --prefix)/bin/$1"
 }
+
+
+# cwork — spin up a Claude Code worktree session for a GitHub issue.
+#
+#   cwork <issue> [extra instructions...]   run in the current pane
+#   cwork -t <issue> [extra...]             dispatch into a NEW tmux window, stay put
+#   cwork -b main <issue>                   branch off main instead of dev (default: dev)
+#   cwork -p feature <issue>                force a branch prefix (skip label detection)
+#   cwork -y <issue>                        skip the confirmation prompt
+#   cwork -n <issue>                        dry run: print the plan and exit
+#
+# Self-contained: needs only `gh`, `git`, and your repo's `make worktree-add`.
+#
+# Optional env knobs:
+#   CWORK_YES=1        always skip confirmation
+#   CWORK_SUFFIX="..." always appended to the prompt, e.g.
+#                      export CWORK_SUFFIX="Open a PR against dev and merge when green."
+
+cwork() {
+  emulate -L zsh
+  setopt local_options err_return pipe_fail
+
+  local use_tmux=0 assume_yes=0 dry_run=0 force_prefix="" base=""
+  [[ -n $CWORK_YES ]] && assume_yes=1
+
+  local opt
+  while getopts ":tyb:p:nh" opt; do
+    case $opt in
+      t) use_tmux=1 ;;
+      y) assume_yes=1 ;;
+      b) base=$OPTARG ;;
+      p) force_prefix=$OPTARG ;;
+      n) dry_run=1 ;;
+      h) print -r -- "usage: cwork [-t] [-y] [-n] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
+      \?) print -u2 -- "cwork: unknown option -$OPTARG"; return 2 ;;
+      :)  print -u2 -- "cwork: -$OPTARG needs an argument"; return 2 ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  local num=$1; shift 2>/dev/null
+  [[ -n $num && $num == <-> ]] \
+    || { print -u2 -- "cwork: first argument must be an issue number"; return 2; }
+  local extra="$*"
+
+  # --- preflight ---
+  command -v gh >/dev/null || { print -u2 -- "cwork: gh CLI not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    || { print -u2 -- "cwork: not inside a git repo"; return 1; }
+  (( use_tmux )) && { [[ -n $TMUX ]] || command -v tmux >/dev/null \
+    || { print -u2 -- "cwork: -t needs tmux"; return 1; }; }
+
+  # --- fetch issue title, state, labels (one call; gh bundles jq via --jq) ---
+  local data
+  data=$(gh issue view "$num" --json title,state,labels \
+        --jq '[.title, .state, (.labels|map(.name)|join(" "))] | @tsv' 2>/dev/null) \
+    || { print -u2 -- "cwork: couldn't read issue #$num (exists? authed?)"; return 1; }
+  local title state labels
+  IFS=$'\t' read -r title state labels <<< "$data"
+  [[ $state == OPEN ]] || print -u2 -- "cwork: heads up — issue #$num is $state"
+
+  # --- build branch name: prefix from labels, slug from title ---
+  local prefix=$force_prefix
+  if [[ -z $prefix ]]; then
+    case " $labels " in
+      *" bug "*)                        prefix=bug ;;
+      *" enhancement "*|*" feature "*)  prefix=feature ;;
+      *" documentation "*)              prefix=docs ;;
+      *)                                prefix=task ;;
+    esac
+  fi
+  local slug
+  slug=$(print -r -- "$title" | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-48 | sed -E 's/-+$//')
+  local branch="${prefix}/${num}-${slug}"
+
+  # --- prompt ---
+  local prompt="Please work issue #${num}."
+  [[ -n $extra ]]        && prompt+=" ${extra}"
+  [[ -n $CWORK_SUFFIX ]] && prompt+=" ${CWORK_SUFFIX}"
+
+  # --- show the plan ---
+  print -r -- "issue   #${num}  [${state}]  ${title}"
+  print -r -- "branch  ${branch}${base:+   (base: $base)}"
+  print -r -- "prompt  ${prompt}"
+  (( dry_run )) && return 0
+  if (( ! assume_yes )); then
+    print -n -- "proceed? [Y/n] "
+    local ans; read -r ans
+    [[ -z $ans || $ans == [Yy]* ]] || { print -- "aborted."; return 1; }
+  fi
+
+  # --- create + provision the worktree via your Makefile ---
+  local -a base_arg
+  [[ -n $base ]] && base_arg=(BASE="$base")
+  make worktree-add BRANCH="$branch" "${base_arg[@]}" || return
+
+  # --- find where the worktree landed, cd in, launch claude ---
+  local wt
+  wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '
+        /^worktree /{p=substr($0,10)}
+        /^branch /{if(substr($0,8)==b){print p; exit}}')
+  [[ -d $wt ]] \
+    || { print -u2 -- "cwork: created branch but couldn't locate its worktree"; return 1; }
+
+  if (( use_tmux )); then
+    local win=${branch##*/}   # 455-pixelated-images
+    tmux new-window -n "$win" "cd ${(q)wt} && claude ${(q)prompt}; exec ${SHELL:-zsh}"
+    print -- "dispatched to tmux window: ${win}  (${wt})"
+  else
+    cd "$wt" && claude "$prompt"
+  fi
+}
+
+# --- optional: tab-complete the issue number with open issues + titles ---
+_cwork() {
+  local -a issues
+  issues=(${(f)"$(gh issue list --state open --limit 50 \
+      --json number,title --jq '.[] | "\(.number):\(.title)"' 2>/dev/null)"})
+  _describe -t issues 'open issue' issues
+}
+compdef _cwork cwork 2>/dev/null
