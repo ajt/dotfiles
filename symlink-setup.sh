@@ -17,6 +17,7 @@ FILES=(
   .tmux.conf
   .vimrc
   .dircolors
+  .cwork
   bin
 )
 

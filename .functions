@@ -119,7 +119,8 @@ shellswitch() {
 #
 # Prompt template: the kickoff prompt is rendered from a template file.
 #   Lookup order:  -T <file>  →  $CWORK_TEMPLATE  →  <repo>/.cwork/prompt.md
-#                  →  a built-in fallback ("Please work issue #<n>.")
+#                  →  ~/.cwork/prompt.md  →  a built-in fallback
+#                  ("Please work issue #<n>.")
 #   Placeholders:  {{num}} {{title}} {{branch}} {{url}} {{labels}} {{body}} {{extra}}
 #   Trailing text on the command line fills {{extra}}; if the template has no
 #   {{extra}}, that text is appended instead. ({{body}} is fetched only if used.)
@@ -204,6 +205,8 @@ cwork() {
     template=$(<"$tmpl_file"); tmpl_src=$tmpl_file
   elif [[ -n $opt_template ]]; then
     print -u2 -- "cwork: template not found: $opt_template"; return 1
+  elif [[ -f $HOME/.cwork/prompt.md ]]; then
+    template=$(<"$HOME/.cwork/prompt.md"); tmpl_src=$HOME/.cwork/prompt.md
   else
     template='Please work issue #{{num}}.'; tmpl_src='(built-in)'
   fi
