@@ -109,6 +109,8 @@ shellswitch() {
 #   cwork -T file <issue> [extra...]        use a specific prompt template for this run
 #   cwork -b main <issue>                   branch off main instead of dev (default: dev)
 #   cwork -p feature <issue>                force a branch prefix (skip label detection)
+#   cwork -P <issue>                        pull an existing branch into a worktree
+#                                           (uses `make worktree-pull` instead of -add)
 #   cwork -y <issue>                        skip the confirmation prompt
 #   cwork -n <issue>                        dry run: print the plan and exit
 #
@@ -138,24 +140,28 @@ cwork() {
   emulate -L zsh
   setopt local_options err_return pipe_fail
 
-  local foreground=0 assume_yes=0 dry_run=0 force_prefix="" base="" opt_template=""
+  local foreground=0 assume_yes=0 dry_run=0 pull_mode=0 force_prefix="" base="" opt_template=""
   [[ -n $CWORK_YES ]] && assume_yes=1
 
   local opt
-  while getopts ":fyb:p:nhT:" opt; do
+  while getopts ":fyb:p:nhPT:" opt; do
     case $opt in
       f) foreground=1 ;;
       y) assume_yes=1 ;;
       b) base=$OPTARG ;;
       p) force_prefix=$OPTARG ;;
+      P) pull_mode=1 ;;
       T) opt_template=$OPTARG ;;
       n) dry_run=1 ;;
-      h) print -r -- "usage: cwork [-f] [-y] [-n] [-T template] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
+      h) print -r -- "usage: cwork [-f] [-y] [-n] [-P] [-T template] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
       \?) print -u2 -- "cwork: unknown option -$OPTARG"; return 2 ;;
       :)  print -u2 -- "cwork: -$OPTARG needs an argument"; return 2 ;;
     esac
   done
   shift $((OPTIND - 1))
+
+  (( pull_mode )) && [[ -n $base ]] \
+    && { print -u2 -- "cwork: -b has no effect with -P (worktree-pull doesn't take a base)"; return 2; }
 
   local num=$1; shift 2>/dev/null
   [[ -n $num && $num == <-> ]] \
@@ -231,6 +237,7 @@ cwork() {
   # --- show the plan ---
   print -r -- "issue     #${num}  [${state}]  ${title}"
   print -r -- "branch    ${branch}${base:+   (base: $base)}"
+  print -r -- "mode      $( (( pull_mode )) && print -- 'pull existing branch' || print -- 'create new branch' )"
   print -r -- "template  ${tmpl_src}"
   print -r -- "──── prompt ────"
   print -r -- "$prompt"
@@ -242,10 +249,12 @@ cwork() {
     [[ -z $ans || $ans == [Yy]* ]] || { print -- "aborted."; return 1; }
   fi
 
-  # --- create + provision the worktree via your Makefile ---
+  # --- create or pull the worktree via your Makefile ---
   local -a base_arg
   [[ -n $base ]] && base_arg=(BASE="$base")
-  make worktree-add BRANCH="$branch" "${base_arg[@]}" || return
+  local wt_target=worktree-add
+  (( pull_mode )) && wt_target=worktree-pull
+  make "$wt_target" BRANCH="$branch" "${base_arg[@]}" || return
 
   # --- find where the worktree landed, cd in, launch claude ---
   local wt
