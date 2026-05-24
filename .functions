@@ -140,20 +140,21 @@ cwork() {
   emulate -L zsh
   setopt local_options err_return pipe_fail
 
-  local foreground=0 assume_yes=0 dry_run=0 pull_mode=0 force_prefix="" base="" opt_template=""
+  local foreground=0 assume_yes=0 dry_run=0 pull_mode=0 force_prefix="" base="" opt_template="" opt_branch=""
   [[ -n $CWORK_YES ]] && assume_yes=1
 
   local opt
-  while getopts ":fyb:p:nhPT:" opt; do
+  while getopts ":fyb:p:nhPB:T:" opt; do
     case $opt in
       f) foreground=1 ;;
       y) assume_yes=1 ;;
       b) base=$OPTARG ;;
       p) force_prefix=$OPTARG ;;
       P) pull_mode=1 ;;
+      B) opt_branch=$OPTARG ;;
       T) opt_template=$OPTARG ;;
       n) dry_run=1 ;;
-      h) print -r -- "usage: cwork [-f] [-y] [-n] [-P] [-T template] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
+      h) print -r -- "usage: cwork [-f] [-y] [-n] [-P] [-B branch] [-T template] [-b base] [-p prefix] <issue#> [extra...]"; return 0 ;;
       \?) print -u2 -- "cwork: unknown option -$OPTARG"; return 2 ;;
       :)  print -u2 -- "cwork: -$OPTARG needs an argument"; return 2 ;;
     esac
@@ -202,6 +203,7 @@ cwork() {
         | cut -c1-48 | sed -E 's/-+$//')
   local branch="${prefix}/${num}-${slug}"
   [[ -n $slug ]] || branch="${prefix}/${num}"
+  [[ -n $opt_branch ]] && branch=$opt_branch
 
   # --- assemble the kickoff prompt from a template ---
   local repo tmpl_file tmpl_src template
