@@ -292,6 +292,162 @@ cwork() {
   fi
 }
 
+# cpull — pull a remote branch (PR or branch name) into a Claude Code worktree session.
+#
+#   cpull <PR#>                  digits → PR number; looks up the head branch via gh,
+#                                and uses the linked issue (closingIssuesReferences)
+#                                for prompt context if present, else the PR itself.
+#   cpull <branch-name>          anything non-numeric → branch name. If it matches
+#                                <prefix>/<N>-… the issue number is auto-extracted.
+#
+#   -f / -y / -n / -T file / -h  same as cwork.
+#
+# Same prompt-template and tmux behavior as cwork. Calls `make worktree-pull`.
+cpull() {
+  emulate -L zsh
+  setopt local_options err_return pipe_fail
+
+  local foreground=0 assume_yes=0 dry_run=0 opt_template=""
+  [[ -n $CWORK_YES ]] && assume_yes=1
+
+  local opt
+  while getopts ":fynhT:" opt; do
+    case $opt in
+      f) foreground=1 ;;
+      y) assume_yes=1 ;;
+      n) dry_run=1 ;;
+      T) opt_template=$OPTARG ;;
+      h) print -r -- "usage: cpull [-f] [-y] [-n] [-T template] <PR#|branch>"; return 0 ;;
+      \?) print -u2 -- "cpull: unknown option -$OPTARG"; return 2 ;;
+      :)  print -u2 -- "cpull: -$OPTARG needs an argument"; return 2 ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  local arg=$1
+  [[ -n $arg ]] || { print -u2 -- "cpull: need a PR number or branch name"; return 2; }
+
+  command -v gh >/dev/null || { print -u2 -- "cpull: gh CLI not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    || { print -u2 -- "cpull: not inside a git repo"; return 1; }
+  (( foreground || dry_run )) || command -v tmux >/dev/null \
+    || { print -u2 -- "cpull: tmux not found (use -f to run without it)"; return 1; }
+
+  # --- mode + branch + initial prompt context ---
+  local mode branch issue_num="" pr_num="" title="" body="" url="" labels="" state=""
+  if [[ $arg == <-> ]]; then
+    mode=pr
+    pr_num=$arg
+    local pr_data
+    pr_data=$(gh pr view "$pr_num" \
+              --json headRefName,title,state,url,closingIssuesReferences \
+              --jq '[.headRefName, .title, .state, .url, (.closingIssuesReferences[0].number // "")] | @tsv' 2>/dev/null) \
+      || { print -u2 -- "cpull: couldn't read PR #$pr_num (exists? authed?)"; return 1; }
+    IFS=$'\t' read -r branch title state url issue_num <<< "$pr_data"
+    [[ -n $branch ]] || { print -u2 -- "cpull: PR #$pr_num has no headRefName"; return 1; }
+  else
+    mode=branch
+    branch=$arg
+    # extract issue from <prefix>/<N>-slug if present
+    local tail=${branch##*/}
+    local head=${tail%%-*}
+    [[ $head == <-> ]] && issue_num=$head
+  fi
+
+  # If we have an issue number, fetch its fields (overrides PR title/state/url
+  # so the prompt is centered on the issue, not the PR). Soft-fail.
+  if [[ -n $issue_num ]]; then
+    local i_data
+    if i_data=$(gh issue view "$issue_num" --json title,state,labels,url \
+                  --jq '[.title, .state, (.labels|map(.name)|join(" ")), .url] | @tsv' 2>/dev/null); then
+      IFS=$'\t' read -r title state labels url <<< "$i_data"
+    fi
+  fi
+
+  local num=${issue_num:-$pr_num}
+
+  # --- template lookup (same precedence as cwork) ---
+  local repo tmpl_file tmpl_src template
+  repo=$(git rev-parse --show-toplevel)
+  tmpl_file=${opt_template:-${CWORK_TEMPLATE:-$repo/.cwork/prompt.md}}
+  if [[ -f $tmpl_file ]]; then
+    template=$(<"$tmpl_file"); tmpl_src=$tmpl_file
+  elif [[ -n $opt_template ]]; then
+    print -u2 -- "cpull: template not found: $opt_template"; return 1
+  elif [[ -f $HOME/.cwork/prompt.md ]]; then
+    template=$(<"$HOME/.cwork/prompt.md"); tmpl_src=$HOME/.cwork/prompt.md
+  else
+    template='Please continue work on branch {{branch}}.'; tmpl_src='(built-in)'
+  fi
+
+  if [[ $template == *'{{body}}'* ]]; then
+    if [[ -n $issue_num ]]; then
+      body=$(gh issue view "$issue_num" --json body --jq '.body' 2>/dev/null)
+    elif [[ -n $pr_num ]]; then
+      body=$(gh pr view "$pr_num" --json body --jq '.body' 2>/dev/null)
+    fi
+  fi
+
+  local prompt=$template
+  prompt=${prompt//'{{num}}'/$num}
+  prompt=${prompt//'{{title}}'/$title}
+  prompt=${prompt//'{{branch}}'/$branch}
+  prompt=${prompt//'{{labels}}'/$labels}
+  prompt=${prompt//'{{url}}'/$url}
+  prompt=${prompt//'{{body}}'/$body}
+  prompt=${prompt//'{{extra}}'/}
+  [[ -n $CWORK_SUFFIX ]] && prompt+=$'\n\n'"$CWORK_SUFFIX"
+
+  # --- show the plan ---
+  [[ $mode == pr ]] && print -r -- "PR        #${pr_num}${issue_num:+   (links issue #$issue_num)}"
+  print -r -- "branch    ${branch}"
+  [[ -n $issue_num ]] && print -r -- "issue     #${issue_num}  [${state}]  ${title}"
+  print -r -- "template  ${tmpl_src}"
+  print -r -- "──── prompt ────"
+  print -r -- "$prompt"
+  print -r -- "────────────────"
+  (( dry_run )) && return 0
+  if (( ! assume_yes )); then
+    print -n -- "proceed? [Y/n] "
+    local ans; read -r ans
+    [[ -z $ans || $ans == [Yy]* ]] || { print -- "aborted."; return 1; }
+  fi
+
+  # --- pull the worktree ---
+  make worktree-pull BRANCH="$branch" || return
+
+  # --- find the worktree, launch claude (same as cwork) ---
+  local wt
+  wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '
+        /^worktree /{p=substr($0,10)}
+        /^branch /{if(substr($0,8)==b){print p; exit}}')
+  [[ -d $wt ]] \
+    || { print -u2 -- "cpull: pulled branch but couldn't locate its worktree"; return 1; }
+  print -- "worktree  ${wt}"
+
+  if (( foreground )); then
+    cd "$wt" && claude "$prompt"
+    return
+  fi
+
+  local win=${branch##*/}
+  local sess=${CWORK_SESSION:-cwork}
+  local cmd="cd ${(q)wt} && claude ${(q)prompt}; exec ${SHELL:-zsh}"
+
+  if [[ -n $TMUX ]]; then
+    tmux new-window -d -n "$win" "$cmd"
+    print -- "opened tmux window: ${win}"
+  else
+    if tmux has-session -t "$sess" 2>/dev/null; then
+      tmux new-window -t "$sess" -n "$win" "$cmd"
+    else
+      tmux new-session -d -s "$sess" -n "$win" "$cmd"
+    fi
+    print -- "attaching to tmux session '${sess}', window: ${win}"
+    tmux attach -t "$sess"
+  fi
+}
+
 # --- optional: tab-complete the issue number with open issues + titles ---
 _cwork() {
   local -a issues
