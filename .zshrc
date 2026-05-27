@@ -123,8 +123,6 @@ export OLLAMA_KV_CACHE_TYPE="q8_0"
 
 unsetopt correct
 unsetopt correct_all
-export PATH=$PATH:$HOME/.maestro/bin
-export PATH=$PATH:$HOME/.maestro/bin
 
 # bun completions
 [ -s "/Users/ajt/.bun/_bun" ] && source "/Users/ajt/.bun/_bun"
@@ -134,5 +132,5 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 export PATH=$PATH:$HOME/.maestro/bin
 export ANDROID_HOME=$HOME/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
+export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
 
