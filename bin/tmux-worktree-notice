@@ -93,6 +93,63 @@ render() {
   done
 }
 
+# _win [target] -> resolves a window id (active window if no target)
+_win() {
+  if [ -n "${1:-}" ]; then
+    tmux display-message -p -t "$1" '#{window_id}'
+  else
+    tmux display-message -p '#{window_id}'
+  fi
+}
+
+# _is_worktree <window-id> -> success if any @wt_* option is set
+_is_worktree() {
+  local v
+  v="$(tmux show-options -wqv -t "$1" @wt_branch)$(tmux show-options -wqv -t "$1" @wt_num)$(tmux show-options -wqv -t "$1" @wt_title)"
+  [ -n "$v" ]
+}
+
+# _banner_pane <window-id> -> prints the pane id flagged @wt_banner, if any
+_banner_pane() {
+  tmux list-panes -t "$1" -F '#{pane_id} #{@wt_banner}' 2>/dev/null \
+    | awk '$2 == "1" { print $1; exit }'
+}
+
+# show [target]
+show() {
+  local win main bp
+  win=$(_win "${1:-}") || return 1
+  if ! _is_worktree "$win"; then
+    tmux display-message 'tmux-worktree-notice: not a worktree window'
+    return 1
+  fi
+  [ -n "$(_banner_pane "$win")" ] && return 0      # idempotent
+  main=$(tmux display-message -p -t "$win" '#{pane_id}')
+  bp=$(tmux split-window -vb -l 3 -t "$main" -P -F '#{pane_id}' "$SELF render $main") || return 1
+  tmux set-option -p -t "$bp" @wt_banner 1
+  tmux select-pane -t "$main"
+}
+
+# hide [target]
+hide() {
+  local win bp
+  win=$(_win "${1:-}") || return 1
+  bp=$(_banner_pane "$win")
+  [ -n "$bp" ] && tmux kill-pane -t "$bp"
+  return 0
+}
+
+# toggle [target]
+toggle() {
+  local win
+  win=$(_win "${1:-}") || return 1
+  if [ -n "$(_banner_pane "$win")" ]; then
+    hide "$win"
+  else
+    show "$win"
+  fi
+}
+
 main() {
   local cmd=${1:-}
   shift || true
