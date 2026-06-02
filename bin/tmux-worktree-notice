@@ -52,6 +52,47 @@ draw() {
   printf '└%s┘\n' "$(repeat "$inner" '─')"
 }
 
+# render <main-pane-id>
+# Runs inside the banner pane. Draws from the window's @wt_* options, redraws on
+# resize, and exits when the main pane is gone so the window can close normally.
+render() {
+  local main=${1:-}
+
+  _redraw() {
+    local num title branch heading body w
+    num=$(tmux show-options -wqv -t "$TMUX_PANE" @wt_num)
+    title=$(tmux show-options -wqv -t "$TMUX_PANE" @wt_title)
+    branch=$(tmux show-options -wqv -t "$TMUX_PANE" @wt_branch)
+    w=$(tmux display-message -p -t "$TMUX_PANE" '#{pane_width}')
+
+    if [ -n "$num" ]; then heading="#$num"; else heading="$branch"; fi
+    if [ -n "$title" ]; then
+      body="$title"
+    elif [ -n "$num" ]; then
+      body=""
+    else
+      body="(issue-less worktree)"
+    fi
+
+    # Print WITHOUT a trailing newline: on a full-height (3-row) pane, a final
+    # newline scrolls the top border off-screen. $(...) strips the trailing
+    # newline; printf %s leaves the cursor on the last line, so nothing scrolls.
+    printf '\033[H\033[J\033[38;5;39m'          # home + clear + accent (color 39 == #00afff)
+    printf '%s' "$(draw "${w:-46}" "$heading" "$body")"
+    printf '\033[0m'
+  }
+
+  trap '_redraw' WINCH
+  _redraw
+
+  # Keep alive until the main pane disappears. `sleep & wait` so the WINCH trap
+  # can interrupt the wait and redraw without killing the loop.
+  while tmux list-panes -F '#{pane_id}' 2>/dev/null | grep -qx "$main"; do
+    sleep 5 &
+    wait "$!" 2>/dev/null
+  done
+}
+
 main() {
   local cmd=${1:-}
   shift || true
