@@ -2,7 +2,8 @@ Please work GitHub issue #{{num}}: {{title}}
 {{url}}
 The branch {{branch}} is already checked out in this worktree, which has its
 own isolated database, Redis, Temporal namespace, and Django port. Read the full
-issue first (gh issue view {{num}}), then implement a complete fix.
+issue first (gh issue view {{num}}), then begin working with the user to use
+superpowers to brainstorm.
 Conventions:
 
 This worktree is based on dev. When the work is done and green, open a PR
