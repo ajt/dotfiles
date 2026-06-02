@@ -134,14 +134,15 @@ Expected output (every line exactly 46 display columns wide):
 Run:
 ```bash
 S=bin/tmux-worktree-notice
-# every line is exactly 46 chars
+# every line is exactly 46 chars (python counts characters, not bytes — macOS
+# BSD awk/wc count bytes, which would miscount the multibyte box glyphs)
 "$S" draw 46 '#4231' 'Fix flaky upload retry on slow networks' \
-  | awk '{ n=0; for(i=1;i<=length($0);i++) n++; if(n!=46){print "FAIL width="n" : "$0; bad=1} } END{ if(!bad) print "OK width" }'
+  | python3 -c 'import sys; print("OK width" if all(len(l)==46 for l in sys.stdin.read().splitlines()) else "FAIL width")'
 # long title gets an ellipsis and does not overflow
 "$S" draw 24 '#9' 'A very long issue title that will not fit' \
   | sed -n '2p' | grep -q '…' && echo "OK ellipsis" || echo "FAIL ellipsis"
 # narrow width is floored, not broken
-"$S" draw 4 '#9' 'x' | wc -l | grep -q '3' && echo "OK 3 lines" || echo "FAIL line count"
+"$S" draw 4 '#9' 'x' | grep -c '' | grep -q '3' && echo "OK 3 lines" || echo "FAIL line count"
 ```
 Expected:
 ```
@@ -149,7 +150,6 @@ OK width
 OK ellipsis
 OK 3 lines
 ```
-(`awk` counts characters per line; with a UTF-8 locale each box glyph counts as 1.)
 
 - [ ] **Step 5: Commit**
 
