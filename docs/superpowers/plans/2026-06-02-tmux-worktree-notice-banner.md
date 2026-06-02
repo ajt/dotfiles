@@ -192,9 +192,11 @@ render() {
       body="(issue-less worktree)"
     fi
 
-    printf '\033[H\033[J'                      # home + clear pane
-    printf '\033[38;5;39m'                      # xterm-256 color 39 == #00afff
-    draw "${w:-46}" "$heading" "$body"
+    # Print WITHOUT a trailing newline: on a full-height (3-row) pane, a final
+    # newline scrolls the top border off-screen. $(...) strips the trailing
+    # newline; printf %s leaves the cursor on the last line, so nothing scrolls.
+    printf '\033[H\033[J\033[38;5;39m'          # home + clear + accent (color 39 == #00afff)
+    printf '%s' "$(draw "${w:-46}" "$heading" "$body")"
     printf '\033[0m'
   }
 
