@@ -201,13 +201,25 @@ _cwork_resolve_template() {
   return 0
 }
 
+# Stamp a tmux window with the worktree's issue context and show the notice box.
+# Args: <window-id> <num> <title> <branch>
+_cwork_tag_window() {
+  emulate -L zsh
+  local wid=$1 num=$2 title=$3 branch=$4
+  [[ -n $wid ]] || return 0
+  tmux set-option -w -t "$wid" @wt_num    "$num"
+  tmux set-option -w -t "$wid" @wt_title  "$title"
+  tmux set-option -w -t "$wid" @wt_branch "$branch"
+  command -v tmux-worktree-notice >/dev/null 2>&1 && tmux-worktree-notice show "$wid"
+}
+
 # Launch claude in the worktree: foreground, or in a tmux window (current
 # session if already in tmux, else a dedicated session we attach to). An empty
 # prompt means claude starts with no instructions.
 # Args: <worktree> <branch> <foreground 0|1> [prompt]
 _cwork_launch() {
   emulate -L zsh
-  local wt=$1 branch=$2 foreground=$3 prompt=$4
+  local wt=$1 branch=$2 foreground=$3 prompt=$4 num=$5 title=$6
   if (( foreground )); then
     cd "$wt" || return
     if [[ -n $prompt ]]; then claude "$prompt"; else claude; fi
@@ -221,15 +233,18 @@ _cwork_launch() {
   else
     cmd="cd ${(q)wt} && claude; exec ${SHELL:-zsh}"
   fi
+  local wid
   if [[ -n $TMUX ]]; then
-    tmux new-window -d -n "$win" "$cmd"
+    wid=$(tmux new-window -d -P -F '#{window_id}' -n "$win" "$cmd")
+    _cwork_tag_window "$wid" "$num" "$title" "$branch"
     print -- "opened tmux window: ${win}"
   else
     if tmux has-session -t "$sess" 2>/dev/null; then
-      tmux new-window -t "$sess" -n "$win" "$cmd"
+      wid=$(tmux new-window -t "$sess" -P -F '#{window_id}' -n "$win" "$cmd")
     else
-      tmux new-session -d -s "$sess" -n "$win" "$cmd"
+      wid=$(tmux new-session -d -s "$sess" -P -F '#{window_id}' -n "$win" "$cmd")
     fi
+    _cwork_tag_window "$wid" "$num" "$title" "$branch"
     print -- "attaching to tmux session '${sess}', window: ${win}"
     tmux attach -t "$sess"
   fi
@@ -502,7 +517,7 @@ CWORKHELP
     || { print -u2 -- "cwork: created branch but couldn't locate its worktree"; return 1; }
   print -- "worktree  ${wt}"
 
-  _cwork_launch "$wt" "$branch" "$foreground" "$prompt"
+  _cwork_launch "$wt" "$branch" "$foreground" "$prompt" "$num" "$title"
 }
 
 # cpull — pull a remote branch (PR or branch name) into a Claude Code worktree session.
@@ -651,7 +666,7 @@ cpull() {
     || { print -u2 -- "cpull: pulled branch but couldn't locate its worktree"; return 1; }
   print -- "worktree  ${wt}"
 
-  _cwork_launch "$wt" "$branch" "$foreground" "$prompt"
+  _cwork_launch "$wt" "$branch" "$foreground" "$prompt" "$num" "$title"
 }
 
 # cprompt — manage the cwork/cpull named-prompt library (the .md files that
