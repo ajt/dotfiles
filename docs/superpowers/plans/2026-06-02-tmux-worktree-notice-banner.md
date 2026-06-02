@@ -21,7 +21,7 @@
 ## File Structure
 
 - **`bin/tmux-worktree-notice`** (new) — the whole feature's runtime. Subcommands: `draw` (pure box renderer, testable), `render` (resident in-pane loop), `show`, `hide`, `toggle`. One file, one responsibility (the banner).
-- **`.tmux.conf`** (modify) — `bind b` toggle + `⎇` tab marker in `window-status-format` and `window-status-current-format`.
+- **`.tmux.conf`** (modify) — `bind b` toggle + `⧉` tab marker in `window-status-format` and `window-status-current-format`.
 - **`.functions`** (modify) — new `_cwork_tag_window` helper; `_cwork_launch` widened to stamp the window and show the banner; `cwork`/`cpull` call sites pass `num`/`title`.
 - **`CLAUDE.md`** (modify) — list the new `bin/` script.
 
@@ -408,7 +408,7 @@ Immediately after it, add:
 bind b run-shell '~/bin/tmux-worktree-notice toggle'
 ```
 
-- [ ] **Step 2: Add the `⎇` marker to the non-current window tab**
+- [ ] **Step 2: Add the `⧉` marker to the non-current window tab**
 
 Replace the existing `window-status-format` line (currently line 139):
 ```tmux
@@ -416,11 +416,11 @@ setw -g window-status-format '#{?@claude_waiting,#[fg=#080808]#[bg=#ff8700]▎#[
 ```
 with:
 ```tmux
-setw -g window-status-format '#{?@claude_waiting,#[fg=#080808]#[bg=#ff8700]▎#[fg=#000000]#[bold] #I #{=14:window_name} ,#[fg=#080808]#[bg=default]▎#[default] #{?@wt_branch,#[fg=#00afff]⎇ #[default],}#I #{=14:window_name} }'
+setw -g window-status-format '#{?@claude_waiting,#[fg=#080808]#[bg=#ff8700]▎#[fg=#000000]#[bold] #I #{=14:window_name} ,#[fg=#080808]#[bg=default]▎#[default] #{?@wt_branch,#[fg=#00afff]⧉ #[default],}#I #{=14:window_name} }'
 ```
-(The only change: `#{?@wt_branch,#[fg=#00afff]⎇ #[default],}` inserted before `#I` in the non-waiting branch.)
+(The only change: `#{?@wt_branch,#[fg=#00afff]⧉ #[default],}` inserted before `#I` in the non-waiting branch.)
 
-- [ ] **Step 3: Add the `⎇` marker to the current window tab**
+- [ ] **Step 3: Add the `⧉` marker to the current window tab**
 
 Replace the existing `window-status-current-format` block (currently lines 147-150):
 ```tmux
@@ -433,10 +433,10 @@ with:
 ```tmux
 setw -g window-status-current-format '\
 #[fg=#080808,bg=#00afff]\
-#[fg=#000000,bg=#00afff,bold] #{?@wt_branch,⎇ ,}#I #{=14:window_name} \
+#[fg=#000000,bg=#00afff,bold] #{?@wt_branch,⧉ ,}#I #{=14:window_name} \
 #[fg=#00afff,bg=#080808]'
 ```
-(The only change: `#{?@wt_branch,⎇ ,}` inserted before `#I`.)
+(The only change: `#{?@wt_branch,⧉ ,}` inserted before `#I`.)
 
 - [ ] **Step 4: Verify the config sources cleanly and the binding exists**
 
@@ -644,7 +644,7 @@ Expected: empty `git status`; the log shows the spec commit plus the six impleme
 
 - [ ] **Step 4: Real smoke test (manual, optional — requires a repo with `gh` + `make worktree-add`)**
 
-In a real project repo on a machine with `claude`/`gh`: run `cwork <open-issue#>`, switch to the new window, confirm the box shows `#<num>` and the title with focus in the work pane and a `⎇` on the tab, press `prefix b` to hide, `prefix b` to restore, then exit the work pane and confirm the window closes.
+In a real project repo on a machine with `claude`/`gh`: run `cwork <open-issue#>`, switch to the new window, confirm the box shows `#<num>` and the title with focus in the work pane and a `⧉` on the tab, press `prefix b` to hide, `prefix b` to restore, then exit the work pane and confirm the window closes.
 
 ---
 

@@ -105,7 +105,7 @@ Subcommands:
   ```
 - **Tab marker** — extend `window-status-format` (line 139) with a conditional on
   `@wt_branch` (mirroring the existing `@claude_waiting` conditional) so worktree
-  window tabs carry a leading glyph (`⎇`). `@wt_branch` is stamped for *every*
+  window tabs carry a leading glyph (`⧉`). `@wt_branch` is stamped for *every*
   worktree window (issue and issue-less), so this covers all of them. The
   `@claude_waiting` styling takes precedence when both are set.
   `window-status-current-format` (line 147) gets the same glyph so the marker is
@@ -166,7 +166,7 @@ prefix b  ──▶  tmux-worktree-notice toggle  ──▶  hide/show on the ac
 1. `tmux source ~/.tmux.conf`.
 2. `cwork <some open issue#>` → new window opens with the boxed notice at the top
    showing `#<num>` and the title; focus is in the main (claude) pane; the tab shows
-   the `⎇` marker.
+   the `⧉` marker.
 3. `prefix b` hides the box; `prefix b` again restores it (rebuilt from options).
 4. Resize the pane/terminal → box re-fits width.
 5. Exit claude and the shell in the main pane → window closes (no lingering banner).
