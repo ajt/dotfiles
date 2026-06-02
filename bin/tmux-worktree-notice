@@ -85,9 +85,12 @@ render() {
   trap '_redraw' WINCH
   _redraw
 
-  # Keep alive until the main pane disappears. `sleep & wait` so the WINCH trap
-  # can interrupt the wait and redraw without killing the loop.
-  while tmux list-panes -F '#{pane_id}' 2>/dev/null | grep -qx "$main"; do
+  # Keep alive until the main pane disappears. List panes server-wide (-a): the
+  # banner often runs in a background window (cwork opens it with new-window -d),
+  # where an unqualified list-panes resolves to the active window and would miss
+  # $main. `sleep & wait` so the WINCH trap can interrupt the wait and redraw
+  # without killing the loop.
+  while tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$main"; do
     sleep 5 &
     wait "$!" 2>/dev/null
   done
