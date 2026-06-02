@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# tmux-worktree-notice — boxed issue notice at the top of worktree windows.
+# Subcommands: draw | render | show | hide | toggle
+# Content lives in window user options @wt_num / @wt_title / @wt_branch,
+# stamped by cwork/cpull (see .functions).
+
+set -u
+
+# Absolute path to this script, so we can re-invoke ourselves from tmux
+# regardless of the caller's PATH (run-shell uses the tmux server environment).
+case "$0" in
+  /*)   SELF="$0" ;;
+  */*)  SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")" ;;
+  *)    SELF="$(command -v -- "$0" 2>/dev/null || printf '%s' "$0")" ;;
+esac
+
+# repeat <count> <string> -> prints <string> <count> times (no trailing newline)
+repeat() {
+  local n=$1 ch=$2 out='' i
+  for (( i = 0; i < n; i++ )); do out+=$ch; done
+  printf '%s' "$out"
+}
+
+# draw <width> <heading> <body>
+# Prints a 3-line box exactly <width> columns wide. ASCII titles assumed
+# (character counts approximate display columns; rare CJK titles may misalign).
+draw() {
+  local w=$1 heading=$2 body=$3
+  (( w < 12 )) && w=12
+  local inner=$(( w - 2 ))          # space between the two vertical borders
+
+  # --- top border:  ┌─ <heading> ───…───┐
+  local maxhead=$(( inner - 4 ))
+  if (( ${#heading} > maxhead && maxhead > 1 )); then
+    heading="${heading:0:maxhead-1}…"
+  fi
+  local pre="─ ${heading} "
+  local dashes=$(( inner - ${#pre} ))
+  (( dashes < 0 )) && dashes=0
+  printf '┌%s%s┐\n' "$pre" "$(repeat "$dashes" '─')"
+
+  # --- middle:  │ <body padded to field> │
+  local field=$(( w - 4 ))
+  if (( ${#body} > field && field > 1 )); then
+    body="${body:0:field-1}…"
+  fi
+  local padlen=$(( field - ${#body} ))
+  (( padlen < 0 )) && padlen=0
+  printf '│ %s%s │\n' "$body" "$(repeat "$padlen" ' ')"
+
+  # --- bottom border
+  printf '└%s┘\n' "$(repeat "$inner" '─')"
+}
+
+main() {
+  local cmd=${1:-}
+  shift || true
+  case "$cmd" in
+    draw)   draw "$@" ;;
+    render) render "$@" ;;
+    show)   show "$@" ;;
+    hide)   hide "$@" ;;
+    toggle) toggle "$@" ;;
+    *) printf 'usage: tmux-worktree-notice {show|hide|toggle|render|draw}\n' >&2; exit 2 ;;
+  esac
+}
+
+main "$@"
