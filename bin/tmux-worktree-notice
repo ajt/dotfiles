@@ -25,7 +25,7 @@ repeat() {
 # Prints a 3-line box exactly <width> columns wide. ASCII titles assumed
 # (character counts approximate display columns; rare CJK titles may misalign).
 draw() {
-  local w=$1 heading=$2 body=$3
+  local w=${1:-46} heading=${2:-} body=${3:-}
   (( w < 12 )) && w=12
   local inner=$(( w - 2 ))          # space between the two vertical borders
 
@@ -128,7 +128,9 @@ show() {
   fi
   [ -n "$(_banner_pane "$win")" ] && return 0      # idempotent
   main=$(tmux display-message -p -t "$win" '#{pane_id}')
-  bp=$(tmux split-window -vb -l 3 -t "$main" -P -F '#{pane_id}' "$SELF render $main") || return 1
+  # Quote $SELF: the command is one string handed to sh -c, so an install path
+  # with a space would otherwise split into command + args. ($main is a %N id.)
+  bp=$(tmux split-window -vb -l 3 -t "$main" -P -F '#{pane_id}' "$(printf '%q' "$SELF") render $main") || return 1
   tmux set-option -p -t "$bp" @wt_banner 1
   tmux select-pane -t "$main"
 }
