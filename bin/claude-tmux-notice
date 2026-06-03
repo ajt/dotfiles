@@ -43,6 +43,7 @@ _should_act() {
 
 # _branch_for <cwd> -> current git branch, or the cwd basename if not a repo.
 _branch_for() {
+  [ -n "$1" ] || return 0
   local b
   b=$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)
   if [ -n "$b" ] && [ "$b" != HEAD ]; then printf '%s' "$b"; else printf '%s' "${1##*/}"; fi
