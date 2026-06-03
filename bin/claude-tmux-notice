@@ -88,10 +88,54 @@ _api_summary() {
   _normalize_title "$text"
 }
 
+# _dispatch_summary <win> <cwd> <prompt> -> fork the detached background labeler.
+# Isolated so tests can stub it. The prompt goes via a temp file (multiline /
+# large prompts dodge arg-length issues); the child unlinks it. All fds detached
+# so nothing leaks into Claude's stdout/prompt context.
+_dispatch_summary() {
+  local win=$1 cwd=$2 prompt=$3 pf
+  pf=$(mktemp "${TMPDIR:-/tmp}/claude-tmux-notice.XXXXXX") || return 0
+  printf '%s' "$prompt" > "$pf"
+  nohup "$SELF" summarize "$win" "$cwd" "$pf" </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+}
+
+# summarize <win> <cwd> <promptfile> -> compute the label, update @wt_title, and
+# repaint the box. Runs detached in the background; the temp file is consumed.
+summarize() {
+  local win=$1 cwd=$2 pf=$3 prompt title
+  prompt=$(cat "$pf" 2>/dev/null); rm -f "$pf"
+  title=$(_api_summary "$prompt") || title=""
+  [ -n "$title" ] || title=$(_fallback_title "$prompt")
+  [ -n "$title" ] || title="(claude session)"
+  tmux set-option -w -t "$win" @wt_title "$title" 2>/dev/null
+  tmux-worktree-notice refresh "$win" 2>/dev/null || true
+}
+
+# hook -> the UserPromptSubmit entrypoint. Reads hook JSON on stdin. Stamps the
+# window, shows the box, and forks the background labeler. Prints nothing.
+hook() {
+  local json prompt cwd win
+  json=$(cat)
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  win=$(_window_for_pane "$TMUX_PANE")
+  [ -n "$win" ] || return 0
+  _should_act "$win" || return 0
+  prompt=$(printf '%s' "$json" | jq -r '.prompt // empty' 2>/dev/null)
+  [ -n "$prompt" ] || return 0
+  cwd=$(printf '%s' "$json" | jq -r '.cwd // empty' 2>/dev/null)
+  [ -n "$cwd" ] || cwd=$(tmux display-message -p -t "$TMUX_PANE" '#{pane_current_path}' 2>/dev/null)
+  tmux set-option -w -t "$win" @wt_branch "$(_branch_for "$cwd")" 2>/dev/null
+  tmux set-option -w -t "$win" @wt_title "summarizing…" 2>/dev/null
+  tmux-worktree-notice show "$win" >/dev/null 2>&1 || true
+  _dispatch_summary "$win" "$cwd" "$prompt"
+  return 0
+}
+
 main() {
   case "${1:-hook}" in
-    hook)      : ;;   # filled in Task 5
-    summarize) : ;;   # filled in Task 5
+    hook)      hook ;;
+    summarize) shift; summarize "$@" ;;
     *) printf 'usage: claude-tmux-notice [hook|summarize <win> <cwd> <promptfile>]\n' >&2; exit 2 ;;
   esac
 }

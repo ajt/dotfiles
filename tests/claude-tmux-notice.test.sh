@@ -60,4 +60,44 @@ assert_eq "$(_normalize_title $'"it\'s done"')" "it's done" "keeps interior apos
 curl() { printf '{"type":"error","error":{"type":"authentication_error"}}'; }
 assert_fail _api_summary "anything" "http error body propagates as failure"
 
+# ---- hook prints NOTHING to stdout and stamps placeholder + branch ---------
+# hook runs via here-string + redirect so it stays in THIS shell and the tmux()
+# fake's writes to TMUX_SETOPTS survive (a pipe / $() would subshell it away).
+export TMUX_PANE=%3
+_window_for_pane() { printf '@5\n'; }
+_should_act() { return 0; }
+_dispatch_summary() { :; }                   # don't really fork/API in the test
+git() { printf 'feature/x\n'; }
+tmux-worktree-notice() { :; }                # stub the renderer call
+TMUX_SETOPTS=""
+tmux() { case "$*" in *set-option*) TMUX_SETOPTS="$TMUX_SETOPTS|$*" ;; *) : ;; esac; }
+hookout=$(mktemp)
+hook >"$hookout" 2>/dev/null <<<'{"prompt":"fix the thing","cwd":"/repo"}'
+assert_empty "$(cat "$hookout")" "hook must print nothing to stdout"
+assert_contains "$TMUX_SETOPTS" "@wt_title summarizing…" "hook stamps the placeholder title"
+assert_contains "$TMUX_SETOPTS" "@wt_branch feature/x" "hook stamps the branch"
+rm -f "$hookout"
+
+# ---- hook is silent and stamps nothing when the guard says no --------------
+_should_act() { return 1; }
+TMUX_SETOPTS=""
+hookout=$(mktemp)
+hook >"$hookout" 2>/dev/null <<<'{"prompt":"fix the thing","cwd":"/repo"}'
+assert_empty "$(cat "$hookout")" "skipped hook prints nothing"
+assert_empty "$TMUX_SETOPTS" "skipped hook stamps nothing"
+rm -f "$hookout"
+
+# ---- summarize sets @wt_title and refreshes --------------------------------
+export ANTHROPIC_API_KEY=test-key
+curl() { printf '{"content":[{"type":"text","text":"Wire up the hook"}]}'; }
+REFRESHED=""
+tmux-worktree-notice() { REFRESHED="$*"; }
+TMUX_SETOPTS=""
+tmux() { case "$*" in *set-option*) TMUX_SETOPTS="$*" ;; *) : ;; esac; }
+pf=$(mktemp); printf 'wire up the user prompt hook' > "$pf"
+summarize @5 /repo "$pf"
+assert_contains "$TMUX_SETOPTS" "@wt_title Wire up the hook" "summarize sets the title"
+assert_eq "$REFRESHED" "refresh @5" "summarize refreshes the window"
+assert_fail test -e "$pf"
+
 pass
