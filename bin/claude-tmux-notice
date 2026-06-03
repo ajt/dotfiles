@@ -41,6 +41,52 @@ _should_act() {
   [ -z "$num" ] && [ -z "$title" ]
 }
 
+# _branch_for <cwd> -> current git branch, or the cwd basename if not a repo.
+_branch_for() {
+  local b
+  b=$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  if [ -n "$b" ] && [ "$b" != HEAD ]; then printf '%s' "$b"; else printf '%s' "${1##*/}"; fi
+}
+
+# _normalize_title <raw> -> single line, no surrounding quotes, trimmed to 48 chars.
+_normalize_title() {
+  local t=$1
+  t=${t//$'\n'/ }                              # newlines -> spaces
+  t="$(printf '%s' "$t" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  t=${t#\"}; t=${t%\"}                          # strip one layer of surrounding quotes
+  t=${t#\'}; t=${t%\'}
+  [ "${#t}" -gt 48 ] && t="${t:0:47}…"
+  printf '%s' "$t"
+}
+
+# _extract_summary <api-json> -> the model's text (.content[0].text), else empty.
+_extract_summary() {
+  printf '%s' "$1" | jq -r '.content[0].text // empty' 2>/dev/null
+}
+
+# _fallback_title <prompt> -> first line of the prompt, normalized.
+_fallback_title() {
+  _normalize_title "$(printf '%s' "$1" | head -n1)"
+}
+
+# _api_summary <prompt> -> prints a normalized label on success; empty + nonzero
+# on any failure (no key, curl error, non-text response).
+_api_summary() {
+  [ -n "${ANTHROPIC_API_KEY:-}" ] || return 1
+  local prompt=$1 payload resp text
+  prompt=${prompt:0:4000}
+  payload=$(jq -n --arg p "$prompt" --arg sys "$SYSTEM_PROMPT" --arg m "$API_MODEL" \
+    '{model:$m, max_tokens:24, system:$sys, messages:[{role:"user", content:$p}]}') || return 1
+  resp=$(curl -sS --max-time 10 "$API_URL" \
+    -H "x-api-key: $ANTHROPIC_API_KEY" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "content-type: application/json" \
+    -d "$payload" 2>/dev/null) || return 1
+  text=$(_extract_summary "$resp")
+  [ -n "$text" ] || return 1
+  _normalize_title "$text"
+}
+
 main() {
   case "${1:-hook}" in
     hook)      : ;;   # filled in Task 5
