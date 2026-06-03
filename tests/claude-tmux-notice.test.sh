@@ -46,4 +46,18 @@ assert_eq "$(_api_summary 'add the refresh subcommand')" "Add refresh subcommand
 curl() { return 7; }
 assert_fail _api_summary "anything" "curl failure propagates"
 
+# ---- _branch_for -----------------------------------------------------------
+assert_empty "$(_branch_for '')" "empty cwd yields empty branch (no fall-through)"
+assert_eq "$(_branch_for /no/such/dir/myproj)" "myproj" "non-repo cwd falls back to basename"
+git() { printf 'feature/x\n'; }
+assert_eq "$(_branch_for /anywhere)" "feature/x" "git repo yields the branch name"
+unset -f git
+
+# ---- _normalize_title: interior apostrophe survives quote stripping --------
+assert_eq "$(_normalize_title $'"it\'s done"')" "it's done" "keeps interior apostrophe"
+
+# ---- _api_summary: an HTTP error JSON body is treated as failure -----------
+curl() { printf '{"type":"error","error":{"type":"authentication_error"}}'; }
+assert_fail _api_summary "anything" "http error body propagates as failure"
+
 pass
