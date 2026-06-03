@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# claude-tmux-notice — Claude Code UserPromptSubmit hook that auto-labels the
+# current tmux window from the session's FIRST prompt.
+#
+# Wiring (~/.claude/settings.json):
+#   { "hooks": { "UserPromptSubmit": [ { "hooks": [
+#       { "type": "command", "command": "~/bin/claude-tmux-notice" } ] } ] } }
+#
+# On the first prompt of an unstamped tmux window it stamps @wt_branch + a
+# "summarizing…" @wt_title, shows the notice box (via tmux-worktree-notice), and
+# forks a detached background job that asks claude-haiku-4-5 for a <=6-word label
+# and updates @wt_title. Prints NOTHING to stdout (UserPromptSubmit stdout is
+# injected into the prompt context). Never errors the window.
+#
+# Subcommands (internal): hook (default) | summarize <win> <cwd> <promptfile>
+set -u
+
+API_URL="https://api.anthropic.com/v1/messages"
+API_MODEL="claude-haiku-4-5"
+SYSTEM_PROMPT='You write terse tmux window labels. Summarize the user request as an imperative phrase of at most 6 words. No surrounding quotes, no trailing punctuation, no preamble. Output only the label.'
+
+# Absolute path to self, so the background re-invocation works under any PATH.
+case "$0" in
+  /*)   SELF="$0" ;;
+  */*)  SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")" ;;
+  *)    SELF="$(command -v -- "$0" 2>/dev/null || printf '%s' "$0")" ;;
+esac
+
+# _window_for_pane <pane> -> window id containing <pane>
+_window_for_pane() {
+  tmux display-message -p -t "$1" '#{window_id}' 2>/dev/null
+}
+
+# _should_act <window-id> -> success if we should auto-label: inside tmux, and
+# the window has neither @wt_num nor @wt_title yet.
+_should_act() {
+  [ -n "${TMUX:-}" ] || return 1
+  local num title
+  num=$(tmux show-options -wqv -t "$1" @wt_num 2>/dev/null)
+  title=$(tmux show-options -wqv -t "$1" @wt_title 2>/dev/null)
+  [ -z "$num" ] && [ -z "$title" ]
+}
+
+main() {
+  case "${1:-hook}" in
+    hook)      : ;;   # filled in Task 5
+    summarize) : ;;   # filled in Task 5
+    *) printf 'usage: claude-tmux-notice [hook|summarize <win> <cwd> <promptfile>]\n' >&2; exit 2 ;;
+  esac
+}
+
+# Allow tests to source this file as a library without executing.
+if [ "${CLAUDE_TMUX_NOTICE_SOURCED:-}" != 1 ]; then
+  main "$@"
+fi
