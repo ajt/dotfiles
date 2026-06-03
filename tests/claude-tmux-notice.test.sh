@@ -18,6 +18,7 @@ assert_fail _should_act @1 "issue window (@wt_num) should skip"
 tmux() { case "$*" in *@wt_num*) printf '' ;; *@wt_title*) printf 'Do a thing\n' ;; esac; }
 assert_fail _should_act @1 "labelled window (@wt_title) should skip"
 # not in tmux -> skip
-( unset TMUX; assert_fail _should_act @1 "no TMUX should skip" )
+( unset TMUX; assert_fail _should_act @1 "no TMUX should skip" ) \
+  || fail "subshell: no TMUX should skip"
 
 pass
