@@ -121,7 +121,9 @@ hook() {
   win=$(_window_for_pane "$TMUX_PANE")
   [ -n "$win" ] || return 0
   _should_act "$win" || return 0
-  prompt=$(printf '%s' "$json" | jq -r '.prompt // empty' 2>/dev/null)
+  # Hedge the field name (matches the repo's other UserPromptSubmit hook) so a
+  # payload-schema change degrades to a silent no-op only as a last resort.
+  prompt=$(printf '%s' "$json" | jq -r '.prompt // .user_prompt // .message // empty' 2>/dev/null)
   [ -n "$prompt" ] || return 0
   cwd=$(printf '%s' "$json" | jq -r '.cwd // empty' 2>/dev/null)
   [ -n "$cwd" ] || cwd=$(tmux display-message -p -t "$TMUX_PANE" '#{pane_current_path}' 2>/dev/null)
