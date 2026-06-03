@@ -21,4 +21,29 @@ assert_fail _should_act @1 "labelled window (@wt_title) should skip"
 ( unset TMUX; assert_fail _should_act @1 "no TMUX should skip" ) \
   || fail "subshell: no TMUX should skip"
 
+# ---- _normalize_title ------------------------------------------------------
+assert_eq "$(_normalize_title '  Fix the bug  ')" "Fix the bug" "trims whitespace"
+assert_eq "$(_normalize_title $'Line one\nLine two')" "Line one Line two" "flattens newlines"
+assert_eq "$(_normalize_title '"Quoted label"')" "Quoted label" "strips surrounding quotes"
+assert_eq "$(_normalize_title 'short label')" "short label" "short titles unchanged"
+long_out=$(_normalize_title "$(printf 'a%.0s' {1..60})")
+assert_contains "$long_out" "…" "long titles get an ellipsis"
+
+# ---- _extract_summary ------------------------------------------------------
+assert_eq "$(_extract_summary '{"content":[{"type":"text","text":"Fix flaky test"}]}')" "Fix flaky test" "extracts content text"
+assert_empty "$(_extract_summary '{"error":{"type":"overloaded"}}')" "no text on error response"
+assert_empty "$(_extract_summary 'not json at all')" "no text on garbage"
+
+# ---- _fallback_title -------------------------------------------------------
+assert_eq "$(_fallback_title $'Please refactor the parser\nand add tests')" "Please refactor the parser" "fallback uses first line"
+
+# ---- _api_summary ----------------------------------------------------------
+( unset ANTHROPIC_API_KEY; assert_fail _api_summary "do something" "no key short-circuits" ) \
+  || fail "subshell: no key should short-circuit"
+export ANTHROPIC_API_KEY=test-key
+curl() { printf '{"content":[{"type":"text","text":" Add refresh subcommand "}]}'; }
+assert_eq "$(_api_summary 'add the refresh subcommand')" "Add refresh subcommand" "api summary normalized"
+curl() { return 7; }
+assert_fail _api_summary "anything" "curl failure propagates"
+
 pass
