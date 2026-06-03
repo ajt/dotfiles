@@ -125,8 +125,8 @@ hook() {
   [ -n "$prompt" ] || return 0
   cwd=$(printf '%s' "$json" | jq -r '.cwd // empty' 2>/dev/null)
   [ -n "$cwd" ] || cwd=$(tmux display-message -p -t "$TMUX_PANE" '#{pane_current_path}' 2>/dev/null)
-  tmux set-option -w -t "$win" @wt_branch "$(_branch_for "$cwd")" 2>/dev/null
-  tmux set-option -w -t "$win" @wt_title "summarizing…" 2>/dev/null
+  tmux set-option -w -t "$win" @wt_branch "$(_branch_for "$cwd")" >/dev/null 2>&1
+  tmux set-option -w -t "$win" @wt_title "summarizing…" >/dev/null 2>&1
   tmux-worktree-notice show "$win" >/dev/null 2>&1 || true
   _dispatch_summary "$win" "$cwd" "$prompt"
   return 0
