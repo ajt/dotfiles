@@ -78,6 +78,16 @@ assert_contains "$TMUX_SETOPTS" "@wt_title summarizing…" "hook stamps the plac
 assert_contains "$TMUX_SETOPTS" "@wt_branch feature/x" "hook stamps the branch"
 rm -f "$hookout"
 
+# ---- hook reads alternative prompt field names (.user_prompt) --------------
+# Matches the field-name hedge used by the repo's other UserPromptSubmit hook,
+# so a payload-schema change can't silently turn this into a no-op.
+TMUX_SETOPTS=""
+hookout=$(mktemp)
+hook >"$hookout" 2>/dev/null <<<'{"user_prompt":"fix the thing","cwd":"/repo"}'
+assert_empty "$(cat "$hookout")" "alt-field hook prints nothing"
+assert_contains "$TMUX_SETOPTS" "@wt_title summarizing…" "hook reads the .user_prompt fallback field"
+rm -f "$hookout"
+
 # ---- hook is silent and stamps nothing when the guard says no --------------
 _should_act() { return 1; }
 TMUX_SETOPTS=""
