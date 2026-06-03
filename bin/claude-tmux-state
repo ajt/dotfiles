@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# claude-tmux-state — reflect Claude Code session state on its tmux window tab.
+#
+# Invoked by Claude Code hooks with the hook event name as $1, e.g.
+#   ~/bin/claude-tmux-state UserPromptSubmit
+# Sets the window options @claude_state and @claude_subagents on the window that
+# owns $TMUX_PANE, then refreshes the status line. Renders nothing itself — the
+# tab appearance lives in .tmux.conf's window-status-format. No-op outside tmux.
+set -u
+
+ev=${1:-}
+pane=${TMUX_PANE:-}
+
+# Not inside tmux (Claude launched in a plain terminal): do nothing, succeed.
+[ -n "${TMUX:-}" ] && [ -n "$pane" ] || exit 0
+
+set_state() { tmux set-option -w -t "$pane" @claude_state "$1" 2>/dev/null; }
+set_count() { tmux set-option -w -t "$pane" @claude_subagents "$1" 2>/dev/null; }
+clear_all() {
+  tmux set-option -uw -t "$pane" @claude_state 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_subagents 2>/dev/null
+}
+
+# current subagent depth, sanitised to a non-negative integer
+n=$(tmux show-options -wqv -t "$pane" @claude_subagents 2>/dev/null)
+case "$n" in ''|*[!0-9]*) n=0 ;; esac
+
+case "$ev" in
+  SessionStart)     set_count 0; set_state idle ;;
+  UserPromptSubmit) set_count 0; set_state working ;;
+  PreToolUse)       if [ "$n" -gt 0 ]; then set_state subagent; else set_state working; fi ;;
+  Notification)     set_state waiting ;;
+  SubagentStart)    n=$((n + 1)); set_count "$n"; set_state subagent ;;
+  SubagentStop)
+    n=$((n - 1)); [ "$n" -lt 0 ] && n=0
+    set_count "$n"
+    if [ "$n" -gt 0 ]; then set_state subagent; else set_state working; fi
+    ;;
+  PreCompact)       set_state compacting ;;
+  Stop)             set_count 0; set_state done ;;
+  SessionEnd)       clear_all ;;
+  *)                exit 0 ;;
+esac
+
+tmux refresh-client -S 2>/dev/null
+exit 0
