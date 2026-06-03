@@ -206,7 +206,9 @@ fi
 # falls back to the first line of your prompt — it never errors the window.
 #
 # Optional: CLAUDE_TMUX_NOTICE_WORDS sets the label length in words (default 6;
-# also scales max_tokens and the title truncation cap).
+# also scales max_tokens and the title truncation cap). Like the key above, it
+# must be EXPORTED in the environment Claude runs in (e.g. in ~/.extra) to take
+# effect. Very large values are still clipped to the tmux pane width when drawn.
 
 
 ##############################################################################################################
