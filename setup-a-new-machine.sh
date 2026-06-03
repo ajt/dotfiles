@@ -187,6 +187,26 @@ fi
 
 
 ##############################################################################################################
+### Claude Code hooks (tmux window auto-notice)
+
+# bin/claude-tmux-notice auto-labels an unstamped tmux window from a Claude
+# session's first prompt. Wire it into your *global* Claude config (this file is
+# NOT tracked by the dotfiles repo) by adding a UserPromptSubmit hook to
+# ~/.claude/settings.json:
+#
+#   {
+#     "hooks": {
+#       "UserPromptSubmit": [
+#         { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-notice" } ] }
+#       ]
+#     }
+#   }
+#
+# It also needs ANTHROPIC_API_KEY exported (put it in ~/.extra). Without a key it
+# falls back to the first line of your prompt — it never errors the window.
+
+
+##############################################################################################################
 ### Symlinks
 
 ./symlink-setup.sh
@@ -202,4 +222,5 @@ echo "│  • tailscale up                      │"
 echo "│  • Log into 1Password, Spotify, etc  │"
 echo "│  • Import GPG keys if needed         │"
 echo "│  • Restart terminal                  │"
+echo "│  • Add claude-tmux-notice hook       │"
 echo "└──────────────────────────────────────┘"
