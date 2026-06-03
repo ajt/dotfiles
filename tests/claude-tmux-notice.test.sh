@@ -119,4 +119,23 @@ assert_contains "$TMUX_SETOPTS" "@wt_title Wire up the hook" "summarize sets the
 assert_eq "$REFRESHED" "refresh @5" "summarize refreshes the window"
 assert_fail test -e "$pf"
 
+# ---- CLAUDE_TMUX_NOTICE_WORDS: configurable label length -------------------
+assert_eq "$(_words)" "6" "default word count is 6"
+assert_eq "$(CLAUDE_TMUX_NOTICE_WORDS=12 _words)" "12" "env var overrides word count"
+assert_eq "$(CLAUDE_TMUX_NOTICE_WORDS=bogus _words)" "6" "non-numeric word count falls back to 6"
+assert_eq "$(CLAUDE_TMUX_NOTICE_WORDS=0 _words)" "6" "zero word count falls back to 6"
+# truncation cap scales with the word count (6 words -> 48 chars, 12 -> 96)
+long60=$(printf 'a%.0s' {1..60})
+assert_contains "$(_normalize_title "$long60")" "…" "default cap (48) truncates a 60-char label"
+assert_eq "$(CLAUDE_TMUX_NOTICE_WORDS=12 _normalize_title "$long60")" "$long60" "raising words raises the cap so 60 chars fit"
+# the configured word count reaches the API system prompt. curl runs inside
+# _api_summary's $(...) subshell, so capture its args via a file (a variable
+# assignment in the subshell wouldn't survive to here).
+export ANTHROPIC_API_KEY=test-key
+curl_args_file=$(mktemp)
+curl() { printf '%s' "$*" > "$curl_args_file"; printf '{"content":[{"type":"text","text":"ok"}]}'; }
+CLAUDE_TMUX_NOTICE_WORDS=11 _api_summary "do a thing" >/dev/null
+assert_contains "$(cat "$curl_args_file")" "11 words" "word count flows into the system prompt"
+rm -f "$curl_args_file"
+
 pass

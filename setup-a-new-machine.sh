@@ -204,6 +204,9 @@ fi
 #
 # It also needs ANTHROPIC_API_KEY exported (put it in ~/.extra). Without a key it
 # falls back to the first line of your prompt — it never errors the window.
+#
+# Optional: CLAUDE_TMUX_NOTICE_WORDS sets the label length in words (default 6;
+# also scales max_tokens and the title truncation cap).
 
 
 ##############################################################################################################
