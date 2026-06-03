@@ -87,6 +87,15 @@ assert_empty "$(cat "$hookout")" "skipped hook prints nothing"
 assert_empty "$TMUX_SETOPTS" "skipped hook stamps nothing"
 rm -f "$hookout"
 
+# ---- hook no-ops on JSON that has no prompt --------------------------------
+_should_act() { return 0; }                  # restore: now the prompt guard must stop it
+TMUX_SETOPTS=""
+hookout=$(mktemp)
+hook >"$hookout" 2>/dev/null <<<'{"cwd":"/repo"}'
+assert_empty "$(cat "$hookout")" "prompt-less hook prints nothing"
+assert_empty "$TMUX_SETOPTS" "prompt-less hook stamps nothing"
+rm -f "$hookout"
+
 # ---- summarize sets @wt_title and refreshes --------------------------------
 export ANTHROPIC_API_KEY=test-key
 curl() { printf '{"content":[{"type":"text","text":"Wire up the hook"}]}'; }
