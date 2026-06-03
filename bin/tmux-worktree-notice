@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tmux-worktree-notice — boxed issue notice at the top of worktree windows.
-# Subcommands: draw | render | show | hide | toggle
+# Subcommands: draw | render | show | hide | toggle | refresh
 # Content lives in window user options @wt_num / @wt_title / @wt_branch,
 # stamped by cwork/cpull (see .functions).
 
@@ -155,6 +155,19 @@ toggle() {
   fi
 }
 
+# refresh [target]
+# Repaint the banner box from the current @wt_* options by signalling the render
+# process (its WINCH trap redraws). No-op when the window has no banner pane.
+refresh() {
+  local win bp pid
+  win=$(_win "${1:-}") || return 1
+  bp=$(_banner_pane "$win")
+  [ -n "$bp" ] || return 0
+  pid=$(tmux display-message -p -t "$bp" '#{pane_pid}')
+  [ -n "$pid" ] && kill -WINCH "$pid" 2>/dev/null
+  return 0
+}
+
 main() {
   local cmd=${1:-}
   shift || true
@@ -164,8 +177,12 @@ main() {
     show)   show "$@" ;;
     hide)   hide "$@" ;;
     toggle) toggle "$@" ;;
-    *) printf 'usage: tmux-worktree-notice {show|hide|toggle|render|draw}\n' >&2; exit 2 ;;
+    refresh) refresh "$@" ;;
+    *) printf 'usage: tmux-worktree-notice {show|hide|toggle|refresh|render|draw}\n' >&2; exit 2 ;;
   esac
 }
 
-main "$@"
+# Allow tests to source this file as a library without executing.
+if [ "${TMUX_WORKTREE_NOTICE_SOURCED:-}" != 1 ]; then
+  main "$@"
+fi
