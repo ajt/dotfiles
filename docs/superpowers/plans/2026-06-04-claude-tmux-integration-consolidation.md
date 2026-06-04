@@ -72,7 +72,7 @@ git commit -m "Add public claude/ config dir (README + statusline)"
 
 ## Task 2: Author the reconciled `claude/settings.example.json`
 
-This fixes the PR #3 regression (restores the `~/bin/claude-tmux-notice` auto-label hook) and wires all `@claude_state` events. Excludes `skipAutoPermissionPrompt`, private plugins, and `axiom-marketplace`.
+This fixes the PR #3 regression (restores the `~/bin/claude-tmux-notice` auto-label hook) and wires all `@claude_state` events. Excludes the security-posture flag, private plugins, and the private marketplace.
 
 **Files:**
 - Create/overwrite: `claude/settings.example.json`
@@ -151,7 +151,7 @@ jq -e '.hooks.UserPromptSubmit | map(.hooks[].command) | any(. == "~/bin/claude-
 jq -e '.hooks | has("SessionStart") and has("SubagentStart") and has("SubagentStop") and has("PreCompact") and has("SessionEnd")' claude/settings.example.json >/dev/null && echo "state events wired"
 jq -e 'has("skipAutoPermissionPrompt") | not' claude/settings.example.json >/dev/null && echo "no skipAutoPermissionPrompt"
 jq -e '.enabledPlugins | keys == ["frontend-design@claude-plugins-official"]' claude/settings.example.json >/dev/null && echo "only public plugin"
-jq -e '.extraKnownMarketplaces | has("axiom-marketplace") | not' claude/settings.example.json >/dev/null && echo "no private marketplace"
+jq -e '.extraKnownMarketplaces | keys == ["anthropic-agent-skills"]' claude/settings.example.json >/dev/null && echo "only the public marketplace"
 ```
 Expected: all six lines print their success message.
 
@@ -321,13 +321,13 @@ Expected: `new settings valid JSON`.
 
 Run:
 ```bash
-jq -e '.skipAutoPermissionPrompt == true' /tmp/claude-settings.new.json >/dev/null && echo "skipAutoPermissionPrompt preserved"
-jq -e '.enabledPlugins["swift-lsp@claude-plugins-official"] == true' /tmp/claude-settings.new.json >/dev/null && echo "private plugin preserved"
-jq -e '.extraKnownMarketplaces | has("axiom-marketplace")' /tmp/claude-settings.new.json >/dev/null && echo "private marketplace preserved"
+# Machine-private settings (private plugins, marketplaces, security-posture flags) must survive
+# untouched — Step 4's full diff is the authoritative proof. The quick positive checks here are
+# just for the newly-wired hooks:
 jq -e '.hooks.UserPromptSubmit | map(.hooks[].command) | any(. == "~/bin/claude-tmux-notice")' /tmp/claude-settings.new.json >/dev/null && echo "auto-label hook present"
 jq -e '.hooks | has("SessionStart") and has("PreCompact")' /tmp/claude-settings.new.json >/dev/null && echo "state hooks present"
 ```
-Expected: all five success lines. Then install:
+Expected: both success lines. Then install:
 ```bash
 mv /tmp/claude-settings.new.json ~/.claude/settings.json
 ```

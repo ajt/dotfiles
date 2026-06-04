@@ -36,8 +36,7 @@ and keeping machine-private state out of version control.
    later via PR #4. PR #3 also contains only the settings file (not `README.md` /
    `statusline-command.sh`).
 3. **Live `~/.claude/settings.json` holds machine-private state** not in the public template:
-   extra plugins (`swift-lsp`, `context7`, `superpowers`), an `axiom-marketplace`
-   (`CharlesWiltgen/Axiom`), and `skipAutoPermissionPrompt: true` — the exact security flag
+   extra private plugins, a private marketplace, and a security-posture flag that
    `claude/README.md` says must never be published. It must never be overwritten wholesale.
 4. **Uncommitted bits:** `.tmux.conf` truecolor line (`set -as terminal-features ',*:RGB'`,
    safe/public) and `.zshrc` `CLAUDE_TMUX_NOTICE_WORDS=10` (personal tuning; repo default 6).
@@ -81,8 +80,8 @@ Included (non-secret, already in the authored template): `permissions.defaultMod
 `enabledPlugins: frontend-design`, `extraKnownMarketplaces: anthropics/skills`,
 `effortLevel/verbose/agentPushNotifEnabled`.
 
-**Excluded** (per `claude/README.md` publish rules): `skipAutoPermissionPrompt`, the private
-plugins (`swift-lsp`, `context7`, `superpowers`), and `axiom-marketplace`.
+**Excluded** (per `claude/README.md` publish rules): the security-posture flag, the private
+plugins, and the private marketplace.
 
 The set of wired events must match the `case` arms in `bin/claude-tmux-state`.
 
@@ -106,7 +105,7 @@ changes go in any commit; feature docs live in `docs/` and `claude/README.md`.
 
 - **Surgical hook swap:** back up `~/.claude/settings.json`, then `jq` to set `.hooks` (and
   confirm `.statusLine`) from the reconciled template, leaving `enabledPlugins`,
-  `extraKnownMarketplaces`, `skipAutoPermissionPrompt`, etc. untouched.
+  `extraKnownMarketplaces`, the security-posture flag, etc. untouched.
 - **`~/.extra`:** add `export CLAUDE_TMUX_NOTICE_WORDS=10`; revert the `.zshrc` line to default.
 - **Reload:** `tmux source-file ~/.tmux.conf`.
 
@@ -114,7 +113,7 @@ changes go in any commit; feature docs live in `docs/` and `claude/README.md`.
 
 - Run the `tests/` bash harness.
 - `jq empty` on both the template and the live settings; diff live settings to confirm only
-  `.hooks` / `.statusLine` changed and `skipAutoPermissionPrompt` survived.
+  `.hooks` / `.statusLine` changed and the security-posture flag survived.
 - **State-render matrix:** for each event, run `~/bin/claude-tmux-state <event>` in a pane and
   confirm the expected tab glyph/color: `working ◐`, `subagent ⊕`, `compacting ⟳`,
   `waiting ?` (orange fill), `done ✓`, idle (quiet bar). Plus one real end-to-end (Claude asks
