@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/test-claude-tmux-state.sh — unit tests for bin/claude-tmux-state.
+# tests/claude-tmux-state.test.sh — unit tests for bin/claude-tmux-state.
 # Spins up a private tmux server, routes the helper's bare `tmux` to it via a
 # PATH shim, drives hook events, and asserts the resulting window options.
 set -u

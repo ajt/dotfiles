@@ -37,7 +37,7 @@ case "$ev" in
     if [ "$n" -gt 0 ]; then set_state subagent; else set_state working; fi
     ;;
   PreCompact)       set_state compacting ;;
-  Stop)             set_count 0; set_state done ;;
+  Stop)             set_count 0; set_state 'done' ;;
   SessionEnd)       clear_all ;;
   *)                exit 0 ;;
 esac
