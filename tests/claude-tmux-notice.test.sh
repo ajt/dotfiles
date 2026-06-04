@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Tests for bin/claude-tmux-notice.
 set -u
+# Neutralize any ambient override (it lives in ~/.extra) so the default-cap
+# assertions below test the built-in default; per-case tests set it inline.
+unset CLAUDE_TMUX_NOTICE_WORDS
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 . "$here/lib.sh"
 
