@@ -14,7 +14,7 @@
 - `bin/` is symlinked to `$HOME` as a whole directory, so `~/bin/claude-tmux-state` is live the moment the file exists in the repo — no re-run of `symlink-setup.sh` needed.
 - `~/.claude/settings.json` is the **live** config (git-ignored, outside the repo): editing it takes effect immediately. `claude/settings.example.json` is the repo's **public template** that mirrors it; keep both in sync.
 - `CLAUDE.md` and `.claude/` are **git-ignored** in this repo. Edits to `CLAUDE.md` are local-only — do **not** attempt to commit them.
-- Confirm git identity is `ajt <github@thorntonindustries.com>` before committing (`git config user.email`). If it shows `ci@perfect.local`, run `git checkout .gitconfig` first — an external process corrupted it this session.
+- Confirm your git identity is correct before committing (`git config user.email`).
 
 ---
 
@@ -376,6 +376,6 @@ Expected: `CLAUDE.md` then `ignored (correct — leave uncommitted)`.
 ## Final verification (after all tasks)
 
 - [ ] `bash tests/test-claude-tmux-state.sh` → `23 passed, 0 failed`.
-- [ ] `git log --oneline` shows commits for Task 1, Task 2, and (if taken) Task 3 — all authored by `ajt <github@thorntonindustries.com>`.
+- [ ] `git log --oneline` shows commits for Task 1, Task 2, and (if taken) Task 3 — all authored by you.
 - [ ] Live behavior: in a real Claude session, the background tab transitions `working` → `done` across a turn, a `Notification` turns it orange, and the focused tab stays blue. (Restart/`/resume` the session if needed so the new hooks load.)
 - [ ] Surface to the user: whether to commit the rest of the untracked `claude/` dir, and the reminder that `~/.claude/settings.json` + `CLAUDE.md` changes are intentionally uncommitted.

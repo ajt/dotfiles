@@ -22,7 +22,7 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 This file is **public**. Review for:
 
 - **`skipAutoPermissionPrompt`** — security-posture flag; publishing it broadcasts your tolerance. Leave it out of the template; set per machine.
-- **`extraKnownMarketplaces`** — only include public marketplace URLs. Private marketplace repos (e.g. `thornton-industries`) belong in the per-machine `settings.json`, not the template.
+- **`extraKnownMarketplaces`** — only include public marketplace URLs. Private marketplace repos (e.g. `your-org/private-marketplace`) belong in the per-machine `settings.json`, not the template.
 - **`enabledPlugins`** — same: only include public plugins.
 - **Hook commands** — fine to publish references to public scripts (`~/.agents/skills/...`); avoid references to proprietary paths.
 
