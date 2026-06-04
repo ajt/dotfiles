@@ -76,6 +76,7 @@ PACKAGES=(
 
   # ─── Misc ─────────────────────────────────────────────────────────
   grc                         # generic coloriser
+  gum                         # TUI toolkit (powers `review-pick`)
   entr                        # run commands on file changes
   watch
   shellcheck                  # shell script linter

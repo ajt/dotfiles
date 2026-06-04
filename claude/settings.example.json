@@ -25,13 +25,15 @@
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SubagentStart" } ] }
     ],
     "SubagentStop": [
-      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SubagentStop" } ] }
+      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SubagentStop" } ] },
+      { "hooks": [ { "type": "command", "command": "python3 ~/.claude/review/stop-review.py", "timeout": 120 } ] }
     ],
     "PreCompact": [
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state PreCompact" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Stop" } ] }
+      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Stop" } ] },
+      { "hooks": [ { "type": "command", "command": "python3 ~/.claude/review/stop-review.py", "timeout": 120 } ] }
     ],
     "SessionEnd": [
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SessionEnd" } ] }

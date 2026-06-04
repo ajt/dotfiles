@@ -8,6 +8,23 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 |---|---|---|
 | `statusline-command.sh` | **Symlinked** to `~/.claude/statusline-command.sh` | Pure stdin-driven renderer, no secrets, fine to live-sync across machines |
 | `settings.example.json` | **Copied once** to `~/.claude/settings.json` if the target doesn't exist; never overwrites | The real `settings.json` accumulates per-machine state (enabled plugins, marketplaces, security flags) — keeping it out of public VC |
+| `review/` | **Symlinked** to `~/.claude/review/` | Scripts + prompts for the second-model spec/plan gate; no secrets (the API key comes from the env). Linked as a unit so the scripts find their `prompts/` |
+
+## Second-model review (`review/`)
+
+An approval gate that runs a *different* model (Gemini) as an adversarial reviewer of `*spec*.md` / `*plan*.md` files Claude touches, then surfaces only the parsed verdict back into the session — the free-text critique stays in a file you read, so a prompt-injected spec can't steer Claude through the review channel. You are the trust boundary.
+
+- **`review.py`** — the dispatcher. Sends the artifact to Gemini and writes `<file>.review.md` (a `VERDICT:` line + critique). Content-hash guarded, so an unchanged file never re-bills.
+- **`stop-review.py`** — the `Stop` / `SubagentStop` hook. At turn end it reviews changed spec/plan files and, if the verdict isn't `APPROVE`, blocks the stop — passing back only the verdict + path, never the critique.
+- **`review-pick`** (`bin/review-pick` → `review/review-pick.py`) — a `gum` TUI to triage findings and hand a curated, trusted selection back to Claude.
+- **`prompts/{spec,plan}.md`** — the reviewer prompts. A git-ignored `prompts/<kind>.local.md` overlay is appended when present, for private project-specific guidance.
+- **`review-on-commit.sh`** — optional per-repo git `post-commit` trigger; not wired by default.
+
+**Backend.** Gemini direct via the Generative Language API — no proxy. Set `GEMINI_API_KEY` (in `~/.extra`). `REVIEW_MODEL` overrides the default `gemini/gemini-3.1-pro-preview`; Langfuse tracing turns on only if `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set. Needs `uv` (present) and `gum` (`brew install gum`, in `brew.sh`). Fails open: if Gemini is unreachable, no review file is written and the gate doesn't block.
+
+**Wiring.** `settings.example.json` adds `stop-review.py` to the `Stop` and `SubagentStop` arrays. On a machine whose `~/.claude/settings.json` already exists, add the same two lines by hand (see the per-machine checklist).
+
+**Use.** Automatic once wired. By hand: `uv run ~/.claude/review/review.py --type spec --file specs/foo.spec.md`. Triage: `review-pick` (newest review in the repo) or `review-pick specs/foo.spec.md`.
 
 ## What's deliberately *not* in here
 
@@ -33,3 +50,4 @@ After `./symlink-setup.sh` runs:
 1. Open `~/.claude/settings.json` and add anything machine-specific (private marketplaces, security flags).
 2. Add private marketplace URLs via `/plugin marketplace add <owner>/<repo>` rather than hand-editing if you can — Claude writes the entry for you.
 3. Drop any plugin `.env` files into their respective plugin data dirs (find with `/plugin info <name>`).
+4. **Second-model review:** put `export GEMINI_API_KEY=…` in `~/.extra` and `brew install gum`. If `~/.claude/settings.json` already existed (so the template wasn't copied), hand-merge the `stop-review.py` entries into your `Stop` and `SubagentStop` hook arrays — see `settings.example.json`.

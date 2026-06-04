@@ -20,3 +20,8 @@ __pycache__/
 !.config/karabiner/
 .config/karabiner/automatic_backups/
 .config/karabiner/assets/
+
+# second-model review kit: private per-project prompt overlays + any runtime
+# state that lands inside the symlinked dir (default state dir is ~/.cache)
+claude/review/prompts/*.local.md
+claude/review/.state/

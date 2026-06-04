@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Thin shim: run the second-model review triage TUI, which lives with the rest
+# of the kit in claude/review/ (so review.py/stop-review.py can find prompts/).
+# bin/ is symlinked to ~/bin and on PATH, so this exposes `review-pick` globally.
+set -euo pipefail
+
+# Resolve this script's real directory, even when called through the ~/bin symlink.
+SRC="${BASH_SOURCE[0]}"
+while [ -h "$SRC" ]; do
+  DIR="$(cd -P "$(dirname "$SRC")" && pwd)"
+  SRC="$(readlink "$SRC")"
+  [[ "$SRC" != /* ]] && SRC="$DIR/$SRC"
+done
+BIN="$(cd -P "$(dirname "$SRC")" && pwd)"
+
+exec python3 "$BIN/../claude/review/review-pick.py" "$@"
