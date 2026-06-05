@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Summon valvonta in a tmux display-popup, scoped to the canonical main repo
+# of the window it was launched from. Invoked by `bind v` in ~/.tmux.conf.
+#
+# Usage: tmux-valvonta-popup [start-dir]   (start-dir defaults to $PWD)
+set -euo pipefail
+
+start_dir="${1:-$PWD}"
+
+# Print a message, wait for a single keypress, then exit 0 so display-popup -E
+# closes cleanly. In a popup the command's stdin is the pane's tty, so the read
+# waits for a real key. In tests we redirect stdin from /dev/null: read hits EOF
+# and returns immediately (|| true), so the hint text still prints but nothing
+# blocks.
+hint() {
+  printf '%s\n\n' "$*"
+  printf 'Press any key to close… '
+  read -rsn1 _ || true
+  exit 0
+}
+
+cd "$start_dir" 2>/dev/null || hint "valvonta: cannot enter $start_dir"
+
+command -v valvonta >/dev/null 2>&1 \
+  || hint "valvonta: not installed — 'uv tool install valvonta' (or pipx install valvonta)."
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || hint "valvonta: $start_dir is not inside a git repository."
+
+# Canonical main repo root: the first line of `git worktree list --porcelain` is
+# always the main worktree (`worktree <path>`), regardless of which worktree we
+# were launched from. NR==1 + sub (not $2) keeps paths with spaces intact; no
+# `head` after the pipe, so awk consumes all input and git is never SIGPIPE'd
+# (which set -o pipefail would otherwise turn into a fatal exit). BSD-awk safe.
+main_root="$(git worktree list --porcelain | awk 'NR==1{sub(/^worktree /,""); print}')"
+[ -n "$main_root" ] || hint "valvonta: could not resolve the repo root for $start_dir."
+
+# Mirror valvonta's own config resolution so we show the hint (not a content-less
+# dashboard) exactly when valvonta would have errored.
+repo_name="$(basename "$main_root")"
+if [ ! -f "$main_root/valvonta.toml" ] \
+   && [ ! -f "$HOME/.config/valvonta/$repo_name.toml" ]; then
+  hint "valvonta: no config for '$repo_name'.
+Create  $main_root/valvonta.toml
+   or    ~/.config/valvonta/$repo_name.toml
+(see valvonta.example.toml in the valvonta repo)."
+fi
+
+# exec so valvonta is the popup's foreground process; when the user quits (q),
+# the command exits and display-popup -E tears the popup down.
+exec valvonta --repo "$main_root"
