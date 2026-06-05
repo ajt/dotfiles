@@ -27,3 +27,7 @@ claude/review/prompts/*.local.md
 claude/review/.state/
 # generated reviewer output (untrusted external-model text, read locally only)
 *.review.md
+
+# git worktrees (feature work happens in .worktrees/<slug>, matching the
+# perfect repo convention)
+.worktrees/
