@@ -242,8 +242,13 @@ Insert immediately after it:
 ```tmux
 # floating valvonta dashboard for the current window's repo (prefix + v)
 bind v display-popup -E -b rounded -T ' valvonta ' -w 70% -h 40% \
-  "$HOME/bin/tmux-valvonta-popup '#{pane_current_path}'"
+  -d '#{pane_current_path}' "$HOME/bin/tmux-valvonta-popup"
 ```
+
+> Note: the pane path is passed via `-d` (which tmux format-expands at run time), NOT as a
+> launcher argument — tmux does not expand the `display-popup` shell-command, so an arg
+> would arrive as the literal `#{pane_current_path}`. The launcher reads `$PWD`, which `-d`
+> sets to the pane path.
 
 - [ ] **Step 2: Verify the config parses and the binding registers**
 

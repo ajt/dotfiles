@@ -59,7 +59,7 @@ Added to the key-bindings section, next to the worktree-related `bind b`:
 ```tmux
 # floating valvonta dashboard for the current window's repo (prefix + v)
 bind v display-popup -E -b rounded -T ' valvonta ' -w 70% -h 40% \
-  "$HOME/bin/tmux-valvonta-popup '#{pane_current_path}'"
+  -d '#{pane_current_path}' "$HOME/bin/tmux-valvonta-popup"
 ```
 
 - `-E` closes the popup when the command exits (valvonta quit via `q`, or after the
@@ -68,9 +68,13 @@ bind v display-popup -E -b rounded -T ' valvonta ' -w 70% -h 40% \
 - `-w 70% -h 40%` is 70% of the client's width × 40% of its height (tmux reads a trailing
   `%` as a fraction of the client, a bare number as an absolute cell count), centered
   (default position). A one-line tweak to resize.
-- `'#{pane_current_path}'` is expanded by tmux and passed as the launcher's `$1` (the
-  originating directory). Passing it as an argument is more reliable than `-d` and lets
-  the launcher own resolution. `v` does not collide with any existing prefix-table
+- `-d '#{pane_current_path}'` sets the popup's working directory to the triggering pane's
+  path. **tmux format-expands `#{...}` only in positions the command opts into (like `-d`)
+  at run time — NOT in the `display-popup` shell-command.** (`${ENV}` like `$HOME` *is*
+  expanded, but at parse time, which is a different mechanism.) Passing
+  `'#{pane_current_path}'` as a launcher argument therefore sends the literal string
+  `#{pane_current_path}` — the original bug. The launcher reads its start dir from `$PWD`,
+  which `-d` has set to the pane path. `v` does not collide with any existing prefix-table
   binding (the copy-mode `v` is in a different key table).
 
 ### Launcher (`bin/tmux-valvonta-popup`)
