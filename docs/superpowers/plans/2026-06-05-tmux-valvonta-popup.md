@@ -122,6 +122,14 @@ out=$(run "$sandbox/noconf" "$PATH_WITH")
 assert_contains "$out" "no config for" "missing config -> hint"
 assert_empty "$(cat "$rec")" "missing config -> valvonta not launched"
 
+# case 6: XDG user config (~/.config/valvonta/<name>.toml) -> exec valvonta
+: >"$rec"
+mkrepo "$sandbox/xdgconf"
+mkdir -p "$sandbox/home/.config/valvonta"
+: >"$sandbox/home/.config/valvonta/xdgconf.toml"
+run "$sandbox/xdgconf" "$PATH_WITH" >/dev/null
+assert_eq "$(cat "$rec")" "--repo $sandbox/xdgconf" "XDG user config -> launches valvonta"
+
 pass
 ```
 
@@ -198,13 +206,13 @@ Run: `chmod +x bin/tmux-valvonta-popup`
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `bash tests/tmux-valvonta-popup.test.sh`
-Expected: PASS — ends with `ok (7 assertions)`.
+Expected: PASS — ends with `ok (8 assertions)`.
 
 - [ ] **Step 6: Run the whole suite (no regressions)**
 
 Run: `bash tests/run.sh`
 Expected: ends with `ALL TESTS PASSED`, including
-`== tmux-valvonta-popup.test.sh` / `ok (7 assertions)`.
+`== tmux-valvonta-popup.test.sh` / `ok (8 assertions)`.
 
 - [ ] **Step 7: Commit**
 
