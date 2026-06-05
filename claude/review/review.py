@@ -23,8 +23,40 @@ Env:
     REVIEW_STATE_DIR  content-hash state dir (default: ~/.cache/claude-review)
     LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY  optional -- enable tracing
 """
-import argparse, hashlib, os, pathlib, re, sys, datetime
+import argparse, hashlib, os, pathlib, re, subprocess, sys, datetime
 import litellm
+
+
+def _hydrate_env_from_extra():
+    """Pull review secrets from ~/.extra when they're not already in the env.
+
+    Hooks inherit the environment of the `claude` process, which often lacks the
+    vars set in ~/.extra -- e.g. when claude is started from cron / CI / a bare
+    script rather than an interactive login shell that sourced it. If
+    GEMINI_API_KEY isn't already set, source ~/.extra in a throwaway subshell and
+    import the relevant keys, keeping ~/.extra the single source of truth."""
+    if os.environ.get("GEMINI_API_KEY"):
+        return
+    extra = pathlib.Path.home() / ".extra"
+    if not extra.is_file():
+        return
+    wanted = ["GEMINI_API_KEY", "REVIEW_MODEL",
+              "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"]
+    dump = 'printf "%s\\0" ' + " ".join(f'"${v}"' for v in wanted)
+    for shell in ("zsh", "bash", "sh"):
+        try:
+            r = subprocess.run([shell, "-c", f'. "{extra}" >/dev/null 2>&1; {dump}'],
+                               capture_output=True, text=True, timeout=10)
+        except (FileNotFoundError, subprocess.SubprocessError):
+            continue
+        if r.returncode == 0 and "\0" in r.stdout:
+            for name, val in zip(wanted, r.stdout.split("\0")):
+                if val and not os.environ.get(name):
+                    os.environ[name] = val
+            return
+
+
+_hydrate_env_from_extra()
 
 # Optional tracing: only register Langfuse when its keys are present, so the
 # reviewer runs on nothing but GEMINI_API_KEY without erroring on a missing key.
@@ -68,6 +100,14 @@ def main():
     seen = STATE_DIR / f"last-{args.type}-{target.name}"
     if not args.force and seen.exists() and seen.read_text().strip() == h:
         sys.exit(0)
+
+    # No key (after the ~/.extra fallback) -> exit 3 so the Stop-hook can tell
+    # "the gate couldn't run" apart from "Gemini errored" and offer to capture
+    # the key. Distinct from the generic exit 1 below.
+    if not os.environ.get("GEMINI_API_KEY"):
+        print(f"[cross-review] {args.type} {target.name}: SKIPPED — no "
+              f"GEMINI_API_KEY found (checked env and ~/.extra)", file=sys.stderr)
+        sys.exit(3)
 
     system = load_prompt(args.type)
     kwargs = {
