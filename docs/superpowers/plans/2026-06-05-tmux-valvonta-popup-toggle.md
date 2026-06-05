@@ -65,7 +65,7 @@ trap 'rm -rf "$sandbox"' EXIT
 # tooldir: the externals the launcher needs, via symlink, so a run's PATH can be
 # locked to exactly these (plus optionally the valvonta stub).
 tooldir="$sandbox/tools"; mkdir -p "$tooldir"
-for t in git awk basename cksum tr sed; do ln -s "$(command -v "$t")" "$tooldir/$t"; done
+for t in git awk basename cksum cut tr sed; do ln -s "$(command -v "$t")" "$tooldir/$t"; done
 
 # tmux stub: records the new-session command the launcher execs.
 rec="$sandbox/tmux.args"
@@ -150,6 +150,12 @@ assert_contains "$(cat "$rec")" "valvonta --no-title --repo $sandbox/xdgconf" "X
 pass
 ```
 
+> The committed `tests/tmux-valvonta-popup.test.sh` is authoritative and went slightly
+> beyond this block during review: it asserts the **quoted** `--repo "<path>"` form, adds a
+> path-with-spaces case and a "tmux not invoked" assertion to case 2 (→ **12** assertions),
+> and includes `cut` in the tooldir loop. The shape below is the same; the deltas are those
+> hardenings.
+
 - [ ] **Step 2: Run the test to verify it FAILS**
 
 Run: `cd ~/Projects/dotfiles && bash tests/tmux-valvonta-popup.test.sh`
@@ -187,13 +193,13 @@ exec tmux new-session -A -s "$session" "valvonta --no-title --repo \"$main_root\
 - [ ] **Step 4: Run the test to verify it PASSES**
 
 Run: `cd ~/Projects/dotfiles && bash tests/tmux-valvonta-popup.test.sh`
-Expected: PASS — ends with `ok (10 assertions)`.
+Expected: PASS — ends with `ok (12 assertions)`.
 
 - [ ] **Step 5: Run the whole suite**
 
 Run: `cd ~/Projects/dotfiles && bash tests/run.sh`
 Expected: ends with `ALL TESTS PASSED`, including `== tmux-valvonta-popup.test.sh` /
-`ok (10 assertions)`. (The binding test still passes here — it's updated in Task 2.)
+`ok (12 assertions)`. (The binding test still passes here — it's updated in Task 2.)
 
 - [ ] **Step 6: Commit**
 
@@ -294,7 +300,7 @@ Expected: PASS — `ok (7 assertions)`.
 
 Run: `cd ~/Projects/dotfiles && bash tests/run.sh`
 Expected: `ALL TESTS PASSED`, including `tmux-valvonta-binding.test.sh` / `ok (7 assertions)`
-and `tmux-valvonta-popup.test.sh` / `ok (10 assertions)`.
+and `tmux-valvonta-popup.test.sh` / `ok (12 assertions)`.
 
 - [ ] **Step 6: Commit**
 
