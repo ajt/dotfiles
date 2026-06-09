@@ -53,8 +53,21 @@ slug=$(printf '%s' "$repo_name" | tr -cs 'A-Za-z0-9_' '-' | sed 's/^-//; s/-$//'
 hash=$(printf '%s' "$main_root" | cksum | cut -d' ' -f1)
 session="vlv-${slug}-${hash}"
 
-# -A attaches if the session exists (instant resume with preserved state), else
-# creates it running valvonta with the banner hidden. Detaching (prefix v) hides
-# it; `q` inside valvonta quits and ends the session. tmux new-session works
-# inside a display-popup even though $TMUX is set, so no `env -u TMUX` is needed.
-exec tmux new-session -A -s "$session" "valvonta --no-title --repo \"$main_root\""
+# Attach-or-create, but split from a bare `new-session -A` so we can configure
+# the session before the popup attaches:
+#   * status off — the session's own status bar is redundant inside the popup and
+#     is what made it look like a nested tmux ("a tiny new window"); hiding it
+#     also gives valvonta the full popup height.
+#   * -c "$HOME" — keep valvonta's OWN pane out of any worktree dir, so it never
+#     shows up in valvonta's worktree->window map (which scans all panes server-
+#     wide) and `j` never targets the popup itself.
+#   * --tmux-popup — tells valvonta that `j` should jump in the underlying session
+#     and then detach this popup, so you land on the target window.
+# Detaching (prefix v, or `j`) hides it; `q` quits valvonta and ends the session.
+# tmux commands work inside a display-popup even with $TMUX set (no `env -u TMUX`).
+if ! tmux has-session -t "=$session" 2>/dev/null; then
+  tmux new-session -d -s "$session" -c "$HOME" \
+    "valvonta --no-title --tmux-popup --repo \"$main_root\""
+  tmux set-option -t "$session" status off
+fi
+exec tmux attach-session -t "$session"
