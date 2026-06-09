@@ -46,6 +46,15 @@ Create  $main_root/valvonta.toml
 (see valvonta.example.toml in the valvonta repo)."
 fi
 
-# exec so valvonta is the popup's foreground process; when the user quits (q),
-# the command exits and display-popup -E tears the popup down.
-exec valvonta --repo "$main_root"
+# Persistent per-project session: a stable name from the canonical root, so
+# every worktree of a repo shares one instance. slug is human-readable; the
+# cksum of the full path disambiguates same-named repos in different locations.
+slug=$(printf '%s' "$repo_name" | tr -cs 'A-Za-z0-9_' '-' | sed 's/^-//; s/-$//')
+hash=$(printf '%s' "$main_root" | cksum | cut -d' ' -f1)
+session="vlv-${slug}-${hash}"
+
+# -A attaches if the session exists (instant resume with preserved state), else
+# creates it running valvonta with the banner hidden. Detaching (prefix v) hides
+# it; `q` inside valvonta quits and ends the session. tmux new-session works
+# inside a display-popup even though $TMUX is set, so no `env -u TMUX` is needed.
+exec tmux new-session -A -s "$session" "valvonta --no-title --repo \"$main_root\""
