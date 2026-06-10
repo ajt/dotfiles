@@ -134,7 +134,7 @@ run Notification
 check "waiting tab (unstyled, inherits orange fill)" '  ' "$(opt @claude_tab)"
 
 run PreCompact
-check "compacting tab" ' #[fg=#8a8a8a]#[default] ' "$(opt @claude_tab)"
+check "compacting tab" ' #[fg=#8a8a8a]#{@claude_spinner3}#[default] ' "$(opt @claude_tab)"
 
 run Stop
 check "done tab" ' #[fg=#00d700]#[default] ' "$(opt @claude_tab)"
@@ -145,6 +145,30 @@ check "error tab (unstyled, inherits red fill)" '  ' "$(opt @claude_tab)"
 run SessionStart
 check "idle tab is empty" '' "$(opt @claude_tab)"
 
+# --- @claude_glyph / @claude_color: the unstyled glyph + state color the
+# --- current-window pill renders (fill = state color, content inherits fg)
+run UserPromptSubmit
+check "working glyph" ' #{@claude_spinner} ' "$(opt @claude_glyph)"
+check "working color" '#00d7d7' "$(opt @claude_color)"
+run SubagentStart
+check "subagent glyph" ' #{@claude_spinner2} ' "$(opt @claude_glyph)"
+check "subagent color" '#af5fff' "$(opt @claude_color)"
+run PreCompact
+check "compacting glyph" ' #{@claude_spinner3} ' "$(opt @claude_glyph)"
+check "compacting color" '#8a8a8a' "$(opt @claude_color)"
+run Notification
+check "waiting glyph" '  ' "$(opt @claude_glyph)"
+check "waiting color" '#ff8700' "$(opt @claude_color)"
+run Stop
+check "done glyph" '  ' "$(opt @claude_glyph)"
+check "done color" '#00d700' "$(opt @claude_color)"
+run StopFailure
+check "error glyph" '  ' "$(opt @claude_glyph)"
+check "error color" '#d70000' "$(opt @claude_color)"
+run SessionStart
+check "idle glyph is empty" '' "$(opt @claude_glyph)"
+check "idle color is empty" '' "$(opt @claude_color)"
+
 # --- @claude_pane: records the owning pane so tmux hooks can clear dead state ---
 run UserPromptSubmit
 check "claude pane recorded" "$PANE" "$(opt @claude_pane)"
@@ -152,6 +176,8 @@ check "claude pane recorded" "$PANE" "$(opt @claude_pane)"
 run SessionEnd
 check "SessionEnd unsets tab" '' "$(opt @claude_tab)"
 check "SessionEnd unsets pane" '' "$(opt @claude_pane)"
+check "SessionEnd unsets glyph" '' "$(opt @claude_glyph)"
+check "SessionEnd unsets color" '' "$(opt @claude_color)"
 
 # --- gc: drops state when the recorded claude pane is gone OR has reverted to
 # --- a bare shell (claude died hard, pane survived); keeps live non-shell panes
@@ -159,6 +185,8 @@ W2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_tab 'X '
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_pane '%999'
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_glyph 'G '
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_color '#00d700'
 W3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300')"
 P3="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W3" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W3" @claude_state working
@@ -177,6 +205,8 @@ sleep 0.3   # let W4/W5 shells finish exec'ing so pane_current_command is real
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc clears dead-pane window state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_state)"
 check "gc clears dead-pane window tab" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_tab)"
+check "gc clears dead-pane window glyph" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_glyph)"
+check "gc clears dead-pane window color" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_color)"
 check "gc keeps live non-shell pane state" working "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W3" @claude_state)"
 check "gc clears shell-reverted pane state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W4" @claude_state)"
 check "gc keeps wrapper-launched workload state" working "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W5" @claude_state)"
@@ -213,6 +243,21 @@ run Stop
 cleared=0
 for i in $(seq 1 40); do [ -z "$(gopt @claude_spinner_pid)" ] && { cleared=1; break; }; sleep 0.1; done
 check "animator exits after subagent turn ends" 1 "$cleared"
+
+# --- animator also covers compacting, cycling the orbit spinner ---
+run PreCompact
+sp3=''; pid_ok=0
+for i in $(seq 1 40); do
+  sp3=$(gopt @claude_spinner3); pid=$(gopt @claude_spinner_pid)
+  [ -n "$sp3" ] && [ -n "$pid" ] && { pid_ok=1; break; }; sleep 0.1
+done
+check "animator runs for compacting state" 1 "$pid_ok"
+case "$sp3" in ⠉|⠘|⠰|⢠|⣀|⡄|⠆|⠃) orbit_ok=1 ;; *) orbit_ok=0 ;; esac
+check "orbit spinner frame valid" 1 "$orbit_ok"
+run Stop
+cleared=0
+for i in $(seq 1 40); do [ -z "$(gopt @claude_spinner_pid)" ] && { cleared=1; break; }; sleep 0.1; done
+check "animator exits after compacting ends" 1 "$cleared"
 
 # --- outside tmux: no error, exit 0 ---
 TMUX= TMUX_PANE= bash "$SCRIPT" Stop; rc=$?

@@ -4,9 +4,11 @@
 # Invoked by Claude Code hooks with the hook event name as $1, e.g.
 #   ~/bin/claude-tmux-state UserPromptSubmit
 # Sets the window options @claude_state, @claude_subagents, @claude_tab (the
-# pre-styled tab glyph window-status-format renders) and @claude_pane (the owning
-# pane, so the `gc` tick can clear state when Claude dies) on the window that
-# owns $TMUX_PANE, then refreshes the status line. No-op outside tmux.
+# pre-styled tab glyph window-status-format renders), @claude_glyph/@claude_color
+# (the unstyled glyph and indicator color the current-window pill renders — fill
+# takes the state color, content inherits the pill fg) and @claude_pane (the
+# owning pane, so the `gc` tick can clear state when Claude dies) on the window
+# that owns $TMUX_PANE, then refreshes the status line. No-op outside tmux.
 set -u
 
 ev=${1:-}
@@ -23,30 +25,34 @@ esac
 [ -n "${TMUX:-}" ] || exit 0
 
 # animate — detached loop that cycles the global @claude_spinner (working,
-# braille) and @claude_spinner2 (subagent, NF pie slices) options and repaints
-# the status bar while at least one window is working or running subagents
+# braille), @claude_spinner2 (subagent, NF pie slices) and @claude_spinner3
+# (compacting, two braille dots orbiting the cell) options and repaints the
+# status bar while at least one window is working, running subagents or
+# compacting
 # (the working @claude_tab references #{@claude_spinner} via #{E:...} in
 # window-status-format). Claims @claude_spinner_pid; a concurrently spawned
 # rival claims it back and this instance exits on the ownership check. Exits —
 # clearing the claim — as soon as nothing is working, so it costs nothing idle.
 animate() {
   tmux set-option -g @claude_spinner_pid "$$" 2>/dev/null || exit 0
-  local i=0 f f2 own
+  local i=0 f f2 f3 own
   while :; do
     own=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
     [ "$own" = "$$" ] || exit 0
     case "$(tmux list-windows -a -F '#{@claude_state}' 2>/dev/null)" in
-      *working*|*subagent*) ;;
+      *working*|*subagent*|*compacting*) ;;
       *) tmux set-option -gu @claude_spinner_pid 2>/dev/null; exit 0 ;;
     esac
     # braille frames: the dot grid spans the full cell, so the spinner sits
     # vertically centered where the old geometric circles hugged the baseline
     case "$i" in
-      0) f='⣾' f2='󰪞' ;; 1) f='⣽' f2='󰪟' ;; 2) f='⣻' f2='󰪠' ;; 3) f='⢿' f2='󰪡' ;;
-      4) f='⡿' f2='󰪢' ;; 5) f='⣟' f2='󰪣' ;; 6) f='⣯' f2='󰪤' ;; *) f='⣷' f2='󰪥' ;;
+      0) f='⣾' f2='󰪞' f3='⠉' ;; 1) f='⣽' f2='󰪟' f3='⠘' ;;
+      2) f='⣻' f2='󰪠' f3='⠰' ;; 3) f='⢿' f2='󰪡' f3='⢠' ;;
+      4) f='⡿' f2='󰪢' f3='⣀' ;; 5) f='⣟' f2='󰪣' f3='⡄' ;;
+      6) f='⣯' f2='󰪤' f3='⠆' ;; *) f='⣷' f2='󰪥' f3='⠃' ;;
     esac
     i=$(( (i + 1) % 8 ))
-    tmux set-option -g @claude_spinner "$f" \; set-option -g @claude_spinner2 "$f2" \; refresh-client -S 2>/dev/null
+    tmux set-option -g @claude_spinner "$f" \; set-option -g @claude_spinner2 "$f2" \; set-option -g @claude_spinner3 "$f3" \; refresh-client -S 2>/dev/null
     sleep 0.25
   done
 }
@@ -58,7 +64,7 @@ ensure_animator() {
   local pid
   pid=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && return 0
-  tmux set-option -g @claude_spinner '⣾' \; set-option -g @claude_spinner2 '󰪞' 2>/dev/null
+  tmux set-option -g @claude_spinner '⣾' \; set-option -g @claude_spinner2 '󰪞' \; set-option -g @claude_spinner3 '⠉' 2>/dev/null
   nohup "$SELF" animate </dev/null >/dev/null 2>&1 &
 }
 
@@ -97,6 +103,8 @@ gc() {
     tmux set-option -uw -t "$w" @claude_state 2>/dev/null
     tmux set-option -uw -t "$w" @claude_subagents 2>/dev/null
     tmux set-option -uw -t "$w" @claude_tab 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_glyph 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_color 2>/dev/null
     tmux set-option -uw -t "$w" @claude_pane 2>/dev/null
   done
 }
@@ -113,7 +121,7 @@ _tab_for() {
   case "$1" in
     working)    printf '%s' ' #[fg=#00d7d7]#{@claude_spinner}#[default] ' ;;
     subagent)   printf '%s' ' #[fg=#af5fff]#{@claude_spinner2}#[default] ' ;;
-    compacting) printf '%s' ' #[fg=#8a8a8a]#[default] ' ;;
+    compacting) printf '%s' ' #[fg=#8a8a8a]#{@claude_spinner3}#[default] ' ;;
     waiting)    printf '%s' '  ' ;;
     error)      printf '%s' '  ' ;;
     done)       printf '%s' ' #[fg=#00d700]#[default] ' ;;
@@ -121,17 +129,50 @@ _tab_for() {
   esac
 }
 
+# _glyph_for <state> -> the same glyph with no styling, for the current-window
+# pill: there the fill is the state color and the content inherits the pill fg
+# (black, or near-white on red), so a pre-colored glyph would vanish into it.
+_glyph_for() {
+  case "$1" in
+    working)    printf '%s' ' #{@claude_spinner} ' ;;
+    subagent)   printf '%s' ' #{@claude_spinner2} ' ;;
+    compacting) printf '%s' ' #{@claude_spinner3} ' ;;
+    waiting)    printf '%s' '  ' ;;
+    error)      printf '%s' '  ' ;;
+    done)       printf '%s' '  ' ;;
+    *)          printf '%s' '' ;;
+  esac
+}
+
+# _color_for <state> -> the state's indicator color; window-status-current-format
+# uses it as the pill fill, falling back to blue when empty/unset.
+_color_for() {
+  case "$1" in
+    working)    printf '%s' '#00d7d7' ;;
+    subagent)   printf '%s' '#af5fff' ;;
+    compacting) printf '%s' '#8a8a8a' ;;
+    waiting)    printf '%s' '#ff8700' ;;
+    error)      printf '%s' '#d70000' ;;
+    done)       printf '%s' '#00d700' ;;
+    *)          printf '%s' '' ;;
+  esac
+}
+
 set_state() {
   tmux set-option -w -t "$pane" @claude_state "$1" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_tab "$(_tab_for "$1")" 2>/dev/null
+  tmux set-option -w -t "$pane" @claude_glyph "$(_glyph_for "$1")" 2>/dev/null
+  tmux set-option -w -t "$pane" @claude_color "$(_color_for "$1")" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_pane "$pane" 2>/dev/null
-  case "$1" in working|subagent) ensure_animator ;; esac
+  case "$1" in working|subagent|compacting) ensure_animator ;; esac
 }
 set_count() { tmux set-option -w -t "$pane" @claude_subagents "$1" 2>/dev/null; }
 clear_all() {
   tmux set-option -uw -t "$pane" @claude_state 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_subagents 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_tab 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_glyph 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_color 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_pane 2>/dev/null
 }
 
