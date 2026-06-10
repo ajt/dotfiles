@@ -187,28 +187,12 @@ fi
 
 
 ##############################################################################################################
-### Claude Code hooks (tmux window auto-notice)
+### Claude Code hooks (tmux window state)
 
-# bin/claude-tmux-notice auto-labels an unstamped tmux window from a Claude
-# session's first prompt. Wire it into your *global* Claude config (this file is
-# NOT tracked by the dotfiles repo) by adding a UserPromptSubmit hook to
-# ~/.claude/settings.json:
-#
-#   {
-#     "hooks": {
-#       "UserPromptSubmit": [
-#         { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-notice" } ] }
-#       ]
-#     }
-#   }
-#
-# It also needs ANTHROPIC_API_KEY exported (put it in ~/.extra). Without a key it
-# falls back to the first line of your prompt — it never errors the window.
-#
-# Optional: CLAUDE_TMUX_NOTICE_WORDS sets the label length in words (default 6;
-# also scales max_tokens and the title truncation cap). Like the key above, it
-# must be EXPORTED in the environment Claude runs in (e.g. in ~/.extra) to take
-# effect. Very large values are still clipped to the tmux pane width when drawn.
+# bin/claude-tmux-state reflects each Claude session's state on its tmux window
+# tab (and tabs show Claude's live pane title while a session runs). Wire the
+# hooks into your *global* ~/.claude/settings.json (NOT tracked by this repo) —
+# copy the "hooks" block from claude/settings.example.json.
 
 
 ##############################################################################################################
@@ -227,5 +211,5 @@ echo "│  • tailscale up                      │"
 echo "│  • Log into 1Password, Spotify, etc  │"
 echo "│  • Import GPG keys if needed         │"
 echo "│  • Restart terminal                  │"
-echo "│  • Add claude-tmux-notice hook       │"
+echo "│  • Add claude-tmux-state hooks       │"
 echo "└──────────────────────────────────────┘"
