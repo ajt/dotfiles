@@ -24,8 +24,20 @@ key, an instruction to capture it inline -- instead of failing open quietly.
 
 Loop-safe: blocks on a given artifact only while its content keeps changing.
 Must be wired SYNCHRONOUSLY (no "async") -- the gate needs Claude to wait.
+
+Bounded: glob hits that are tracked AND unchanged are skipped (they cannot
+have moved this turn; the globs exist for gitignored / outside-repo
+artifacts), the remaining reviews run in parallel, and each review subprocess
+gets its own timeout that surfaces as a loud one-time block. The first
+version reviewed every glob-matched artifact serially -- a handful of
+never-reviewed artifacts meant several serial Gemini calls, which blew the
+hook's 120s budget, so Claude Code killed the hook and the gate failed open
+silently on every stop.
 """
 import hashlib, json, os, pathlib, re, shlex, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
+
+REVIEW_TIMEOUT = 100   # seconds per review.py call; hook budget is 120
 
 HERE = pathlib.Path(__file__).resolve().parent
 REVIEW = HERE / "review.py"
@@ -75,6 +87,15 @@ def git_changed(root: pathlib.Path):
     return seen
 
 
+def git_tracked(root: pathlib.Path):
+    """Resolved paths of all tracked files; empty set outside a git repo."""
+    r = subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        return set()
+    return {(root / p).resolve() for p in r.stdout.split("\0") if p}
+
+
 def glob_paths(bases):
     """Resolved paths matching the known plan/spec globs under each base dir."""
     globs = list(DEFAULT_GLOBS)
@@ -119,23 +140,48 @@ def main():
             if top.returncode == 0 else cwd)
     STATE.mkdir(parents=True, exist_ok=True)
 
-    candidates = git_changed(root) | glob_paths({root, cwd})
+    changed = git_changed(root)
+    # A glob hit that is tracked and unchanged cannot have moved this turn --
+    # skip it. The globs exist for gitignored / outside-repo artifacts, which
+    # survive this filter (git_tracked is empty outside a repo).
+    candidates = changed | (glob_paths({root, cwd}) - (git_tracked(root) - changed))
 
-    blocks, errors = [], []
+    targets = []
     for target in sorted(candidates):
         kind = classify(str(target))
-        if not kind or not target.is_file():
-            continue
+        if kind and target.is_file():
+            targets.append((target, kind))
 
+    # Reviews run concurrently (they are network-bound Gemini calls) with a
+    # per-call timeout, so one slow/cold artifact can't eat the whole hook
+    # budget and get the gate killed from outside. A timeout returns None and
+    # is surfaced through the loud err path below.
+    def run_review(target, kind):
+        try:
+            return subprocess.run(["uv", "run", str(REVIEW), "--type", kind,
+                                   "--file", str(target)],
+                                  cwd=root, capture_output=True, text=True,
+                                  timeout=REVIEW_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return None
+
+    results = []
+    if targets:
+        with ThreadPoolExecutor(max_workers=min(8, len(targets))) as ex:
+            results = list(ex.map(lambda tk: run_review(*tk), targets))
+
+    blocks, errors = [], []
+    for (target, kind), r in zip(targets, results):
         disp = os.path.relpath(target, root)
 
-        # review.py's content-hash guard makes a repeat call cheap (no model hit)
-        # when the artifact hasn't changed since last review.
-        r = subprocess.run(["uv", "run", str(REVIEW), "--type", kind,
-                            "--file", str(target)],
-                           cwd=root, capture_output=True, text=True)
-
         review_file = target.with_suffix(target.suffix + ".review.md")
+
+        if r is None:
+            # Gemini call ran past REVIEW_TIMEOUT -> loud, once per version.
+            if block_once(target, "err-" + kind):
+                errors.append((disp, kind,
+                               f"review timed out (>{REVIEW_TIMEOUT}s)"))
+            continue
 
         # Branch on review.py's exit code, NOT on whether a .review.md exists: a
         # stale review from an earlier successful pass on older content could
