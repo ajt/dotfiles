@@ -139,7 +139,9 @@ def main():
         sys.exit(1)
     review = (resp.choices[0].message.content or "").strip()
 
-    m = re.match(r"VERDICT:\s*(APPROVE|CHANGES|BLOCK)\b", review)
+    # Accept a bare leading token too -- Gemini sometimes drops the "VERDICT: "
+    # prefix despite the prompt (stop-review.py parses with the same leniency).
+    m = re.match(r"(?:VERDICT:\s*)?(APPROVE|CHANGES|BLOCK)\b", review)
     verdict = m.group(1) if m else "CHANGES"  # fail safe: if unparseable, make a human look
 
     out = target.with_suffix(target.suffix + ".review.md")

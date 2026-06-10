@@ -12,11 +12,11 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 
 ## Second-model review (`review/`)
 
-An approval gate that runs a *different* model (Gemini) as an adversarial reviewer of `*spec*.md` / `*plan*.md` files Claude touches, then surfaces only the parsed verdict back into the session — the free-text critique stays in a file you read, so a prompt-injected spec can't steer Claude through the review channel. You are the trust boundary.
+An approval gate that runs a *different* model (Gemini) as an adversarial reviewer of plan/spec markdown files Claude touches (word-boundary match on the filename, or a `plans/`/`specs/` parent dir). On a non-`APPROVE` verdict the gate blocks the turn and walks Claude through an **in-session triage**: the findings are parsed into structured items and presented to you as multi-select choices (AskUserQuestion); only the items you pick are applied to the artifact, which the gate then re-reviews on the next stop. You are still the trust boundary — the reviewer's free text enters the session as display-only data (the protocol forbids following instructions embedded in it), and nothing lands without your explicit selection.
 
 - **`review.py`** — the dispatcher. Sends the artifact to Gemini and writes `<file>.review.md` (a `VERDICT:` line + critique). Content-hash guarded, so an unchanged file never re-bills.
-- **`stop-review.py`** — the `Stop` / `SubagentStop` hook. At turn end it reviews changed spec/plan files and, if the verdict isn't `APPROVE`, blocks the stop — passing back only the verdict + path, never the critique.
-- **`review-pick`** (`bin/review-pick` → `review/review-pick.py`) — a `gum` TUI to triage findings and hand a curated, trusted selection back to Claude.
+- **`stop-review.py`** — the `Stop` / `SubagentStop` hook. At turn end it reviews changed spec/plan files and, if the verdict isn't `APPROVE`, blocks the stop with the verdict, path, and the triage protocol above.
+- **`review-pick`** (`bin/review-pick` → `review/review-pick.py`) — `--json` emits the structured findings that power the in-session triage; without flags, a standalone `gum` TUI to triage in a separate terminal instead (writes `<artifact>.selected.txt` + clipboard).
 - **`prompts/{spec,plan}.md`** — the reviewer prompts. A git-ignored `prompts/<kind>.local.md` overlay is appended when present, for private project-specific guidance.
 - **`review-on-commit.sh`** — optional per-repo git `post-commit` trigger; not wired by default.
 
@@ -24,7 +24,7 @@ An approval gate that runs a *different* model (Gemini) as an adversarial review
 
 **Wiring.** `settings.example.json` adds `stop-review.py` to the `Stop` and `SubagentStop` arrays. On a machine whose `~/.claude/settings.json` already exists, add the same two lines by hand (see the per-machine checklist).
 
-**Use.** Automatic once wired. By hand: `uv run ~/.claude/review/review.py --type spec --file specs/foo.spec.md`. Triage: `review-pick` (newest review in the repo) or `review-pick specs/foo.spec.md`.
+**Use.** Automatic once wired — when the gate blocks, Claude presents the findings as choices and you pick. By hand: `uv run ~/.claude/review/review.py --type spec --file specs/foo.spec.md` to review, `review-pick` for the terminal TUI, `review-pick --json [target]` for the structured findings.
 
 ## What's deliberately *not* in here
 
