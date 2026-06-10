@@ -147,17 +147,29 @@ run SessionEnd
 check "SessionEnd unsets tab" '' "$(opt @claude_tab)"
 check "SessionEnd unsets pane" '' "$(opt @claude_pane)"
 
-# --- gc: drops state only for windows whose recorded claude pane is gone ---
-run UserPromptSubmit   # live window: state working, @claude_pane = $PANE (alive)
+# --- gc: drops state when the recorded claude pane is gone OR has reverted to
+# --- a bare shell (claude died hard, pane survived); keeps live non-shell panes
 W2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_tab 'X '
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_pane '%999'
+W3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300')"
+P3="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W3" '#{pane_id}')"
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W3" @claude_state working
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W3" @claude_pane "$P3"
+W4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"   # default shell
+P4="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W4" '#{pane_id}')"
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_state working
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_pane "$P4"
+sleep 0.3   # let W4's shell finish exec'ing so pane_current_command is real
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc clears dead-pane window state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_state)"
 check "gc clears dead-pane window tab" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_tab)"
-check "gc keeps live-pane window state" working "$(opt @claude_state)"
-"$REAL_TMUX" -L "$SOCK" kill-window -t "$W2"
+check "gc keeps live non-shell pane state" working "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W3" @claude_state)"
+check "gc clears shell-reverted pane state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W4" @claude_state)"
+"$REAL_TMUX" -L "$SOCK" kill-window -t "$W2" 2>/dev/null
+"$REAL_TMUX" -L "$SOCK" kill-window -t "$W3" 2>/dev/null
+"$REAL_TMUX" -L "$SOCK" kill-window -t "$W4" 2>/dev/null
 
 # --- animator: a detached loop cycles @claude_spinner while a window works ---
 gopt() { "$REAL_TMUX" -L "$SOCK" show-options -gqv "$1"; }

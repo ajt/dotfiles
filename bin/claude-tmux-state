@@ -61,17 +61,23 @@ ensure_animator() {
   nohup "$SELF" animate </dev/null >/dev/null 2>&1 &
 }
 
-# gc — drop @claude_* from windows whose recorded pane no longer exists (claude
-# died without a SessionEnd hook: killed pane, crashed session). Invoked from
-# the status bar's #() tick, not a Claude hook, so it has no TMUX_PANE and must
-# print nothing. The cleared tab repaints on the next status interval.
+# gc — drop @claude_* from windows whose recorded pane no longer exists, OR
+# whose pane's foreground process has reverted to a bare shell (claude died
+# hard — crash, SIGKILL — without a SessionEnd hook, but the pane survived;
+# this also stops the animator from looping forever on the stuck "working").
+# Invoked from the status bar's #() tick, not a Claude hook, so it has no
+# TMUX_PANE and must print nothing. The cleared tab repaints next interval.
 gc() {
-  local live w p
-  live=$(tmux list-panes -a -F '#{pane_id}' 2>/dev/null)
+  local live w p cmd
+  live=$(tmux list-panes -a -F '#{pane_id} #{pane_current_command}' 2>/dev/null)
   tmux list-windows -a -F '#{window_id} #{@claude_pane}' 2>/dev/null |
   while read -r w p; do
     [ -n "$p" ] || continue
-    printf '%s\n' "$live" | grep -qx "$p" && continue
+    cmd=$(printf '%s\n' "$live" | awk -v p="$p" '$1 == p { print $2; exit }')
+    case "$cmd" in
+      ''|sh|bash|zsh|fish|dash|ksh|tcsh|-sh|-bash|-zsh|-fish) ;;  # gone or bare shell -> clear
+      *) continue ;;                                              # something still running
+    esac
     tmux set-option -uw -t "$w" @claude_state 2>/dev/null
     tmux set-option -uw -t "$w" @claude_subagents 2>/dev/null
     tmux set-option -uw -t "$w" @claude_tab 2>/dev/null
