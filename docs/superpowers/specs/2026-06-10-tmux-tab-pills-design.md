@@ -28,8 +28,16 @@ Every background tab is a rounded pill drawn with Nerd Font half-circle caps
 
 Mechanism note: `window-status-style` becomes `fg=#9e9e9e,bg=#343434` so the
 `#[default]` resets inside `@claude_tab` fragments resolve to pill colors; the
-caps and separator set explicit `bg` so the bar background shows between
-pills. The loud states (waiting, error) override with explicit fills.
+caps set `fg` = pill color over an explicit bar-background `bg` (and the
+separator sets explicit `bg`) so the bar shows between pills. The loud states
+(waiting, error) override with explicit fills. `=20`/`=14` are tmux truncation
+modifiers (no padding). Spinner options are tmux-server-global: every session
+shares the same frame, so concurrent spinners animate in lockstep by design.
+
+Precedence: the blue current-window pill always wins — waiting/error fills
+render on background tabs only. When the window is focused, the pane itself
+shows the permission prompt or error; the loud pill's job is to pull you to a
+window you are not looking at.
 
 ## State → visual map
 
@@ -46,7 +54,10 @@ pills. The loud states (waiting, error) override with explicit fills.
 `error` is new: `StopFailure` (turn ended on an API error) maps to it instead
 of folding into `done`. Like `done`, it is acknowledged back to idle by the
 pane-focus hooks (condition extends to `done` OR `error`); the `Idle` event
-still leaves it alone.
+still leaves it alone. Acknowledgment semantics: a red pill on a background
+tab persists until you visit that window; an error in the window you are
+already watching is visible in the pane itself and its state clears when you
+leave. This mirrors `done` and is deliberate.
 
 ## Animator
 
