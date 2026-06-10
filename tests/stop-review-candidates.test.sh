@@ -4,7 +4,8 @@
 # next to the artifact, else exit 3 = no key), so no Gemini call can ever fire.
 # Guards the regressions found in review: non-ASCII changed paths escaping the
 # gate (-z), committed-in-same-turn artifacts being skipped (fresh window),
-# and old tracked-clean artifacts NOT being re-reviewed every stop.
+# old tracked-clean artifacts NOT being re-reviewed every stop, and the
+# round limit that stops the autonomous edit/re-review ping-pong.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 . "$here/lib.sh"
@@ -67,5 +68,18 @@ out2=$(printf '{"cwd":"%s"}' "$repo" \
 rc=$?
 assert_eq "$rc" "0" "repeat stop on unchanged content allows"
 assert_empty "$out2" "repeat stop is silent"
+
+# round limit: each new content version blocks again; the third consecutive
+# blocked version must tell Claude to stop editing and defer to the human
+rerun() {
+  printf '# a v%s\n' "$1" > "$repo/docs/superpowers/plans/a-plan.md"
+  printf '{"cwd":"%s"}' "$repo" \
+    | env REVIEW_STATE_DIR="$sandbox/state" PATH="$stubdir:$PATH" python3 "$SR"
+}
+out3=$(rerun 2)
+assert_contains "$out3" '"decision": "block"' "new version blocks again (round 2)"
+assert_eq "$(printf '%s' "$out3" | grep -c 'ROUND LIMIT')" "0" "round 2 has no limit warning"
+out4=$(rerun 3)
+assert_contains "$out4" "ROUND LIMIT" "round 3 defers to the human"
 
 pass

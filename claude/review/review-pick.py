@@ -13,10 +13,10 @@ Usage:
     review-pick foo.spec.md.review.md
     review-pick --json [target]       # structured findings as JSON, no TUI
 
---json powers the in-session triage protocol (see stop-review.py): Claude runs
-it to get the findings as data, presents every item to the human as
-multi-select choices (AskUserQuestion), and applies only what the human picks.
-The selection step stays with the human either way.
+--json powers the gate's autonomous handling protocol (see stop-review.py):
+Claude runs it to get the findings as structured data, sanity-checks each
+finding on its merits, applies the survivors to the artifact, and reports what
+it applied and rejected. The TUI mode remains for hand-curated human triage.
 
 Needs gum (TUI mode only):  brew install gum
 """

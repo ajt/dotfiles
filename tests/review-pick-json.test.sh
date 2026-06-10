@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# review-pick --json: structured findings extraction for the in-session triage
+# review-pick --json: structured findings extraction for the in-session handling
 # protocol (stop-review.py). Pure parsing — no gum, no network, no tmux.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
