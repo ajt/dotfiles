@@ -22,30 +22,31 @@ esac
 # Not inside tmux (Claude launched in a plain terminal): do nothing, succeed.
 [ -n "${TMUX:-}" ] || exit 0
 
-# animate — detached loop that cycles the global @claude_spinner option and
-# repaints the status bar while at least one window is in the working state
+# animate — detached loop that cycles the global @claude_spinner (working,
+# braille) and @claude_spinner2 (subagent, NF pie slices) options and repaints
+# the status bar while at least one window is working or running subagents
 # (the working @claude_tab references #{@claude_spinner} via #{E:...} in
 # window-status-format). Claims @claude_spinner_pid; a concurrently spawned
 # rival claims it back and this instance exits on the ownership check. Exits —
 # clearing the claim — as soon as nothing is working, so it costs nothing idle.
 animate() {
   tmux set-option -g @claude_spinner_pid "$$" 2>/dev/null || exit 0
-  local i=0 f own
+  local i=0 f f2 own
   while :; do
     own=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
     [ "$own" = "$$" ] || exit 0
     case "$(tmux list-windows -a -F '#{@claude_state}' 2>/dev/null)" in
-      *working*) ;;
+      *working*|*subagent*) ;;
       *) tmux set-option -gu @claude_spinner_pid 2>/dev/null; exit 0 ;;
     esac
     # braille frames: the dot grid spans the full cell, so the spinner sits
     # vertically centered where the old geometric circles hugged the baseline
     case "$i" in
-      0) f='⣾' ;; 1) f='⣽' ;; 2) f='⣻' ;; 3) f='⢿' ;;
-      4) f='⡿' ;; 5) f='⣟' ;; 6) f='⣯' ;; *) f='⣷' ;;
+      0) f='⣾' f2='󰪞' ;; 1) f='⣽' f2='󰪟' ;; 2) f='⣻' f2='󰪠' ;; 3) f='⢿' f2='󰪡' ;;
+      4) f='⡿' f2='󰪢' ;; 5) f='⣟' f2='󰪣' ;; 6) f='⣯' f2='󰪤' ;; *) f='⣷' f2='󰪥' ;;
     esac
     i=$(( (i + 1) % 8 ))
-    tmux set-option -g @claude_spinner "$f" \; refresh-client -S 2>/dev/null
+    tmux set-option -g @claude_spinner "$f" \; set-option -g @claude_spinner2 "$f2" \; refresh-client -S 2>/dev/null
     sleep 0.25
   done
 }
@@ -57,7 +58,7 @@ ensure_animator() {
   local pid
   pid=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && return 0
-  tmux set-option -g @claude_spinner '⣾' 2>/dev/null
+  tmux set-option -g @claude_spinner '⣾' \; set-option -g @claude_spinner2 '󰪞' 2>/dev/null
   nohup "$SELF" animate </dev/null >/dev/null 2>&1 &
 }
 
@@ -111,9 +112,10 @@ if [ "$ev" = gc ]; then gc; exit 0; fi
 _tab_for() {
   case "$1" in
     working)    printf '%s' ' #[fg=#00d7d7]#{@claude_spinner}#[default] ' ;;
-    subagent)   printf '%s' ' #[fg=#af5fff]#[default] ' ;;
+    subagent)   printf '%s' ' #[fg=#af5fff]#{@claude_spinner2}#[default] ' ;;
     compacting) printf '%s' ' #[fg=#8a8a8a]#[default] ' ;;
     waiting)    printf '%s' '  ' ;;
+    error)      printf '%s' '  ' ;;
     done)       printf '%s' ' #[fg=#00d700]#[default] ' ;;
     *)          printf '%s' '' ;;
   esac
@@ -123,7 +125,7 @@ set_state() {
   tmux set-option -w -t "$pane" @claude_state "$1" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_tab "$(_tab_for "$1")" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_pane "$pane" 2>/dev/null
-  [ "$1" = working ] && ensure_animator
+  case "$1" in working|subagent) ensure_animator ;; esac
 }
 set_count() { tmux set-option -w -t "$pane" @claude_subagents "$1" 2>/dev/null; }
 clear_all() {
@@ -156,7 +158,8 @@ case "$ev" in
     esac
     ;;
   PreCompact)       set_state compacting ;;
-  Stop|StopFailure) set_count 0; set_state 'done' ;;
+  Stop)             set_count 0; set_state 'done' ;;
+  StopFailure)      set_count 0; set_state error ;;
   Idle)
     # Notification idle_prompt: Claude has sat waiting for input for 60s+. A
     # busy glyph at that point is stale (interrupt, crash, missed Stop) — quiet
