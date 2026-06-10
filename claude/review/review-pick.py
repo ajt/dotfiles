@@ -140,7 +140,10 @@ def split_items(body):
             p = " ".join(para.split())
             if p:
                 items.append(p)
-    return [i.strip() for i in items if i and i.strip()]
+    # Drop placeholder bodies ("None.", "N/A") — a section with no findings
+    # must not offer a pickable non-finding.
+    return [i.strip() for i in items
+            if i and i.strip() and i.strip().rstrip(".").lower() not in ("none", "n/a")]
 
 def kind_of(title):
     t = title.lower()

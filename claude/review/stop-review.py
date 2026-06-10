@@ -25,7 +25,7 @@ key, an instruction to capture it inline -- instead of failing open quietly.
 Loop-safe: blocks on a given artifact only while its content keeps changing.
 Must be wired SYNCHRONOUSLY (no "async") -- the gate needs Claude to wait.
 """
-import hashlib, json, os, pathlib, re, subprocess, sys
+import hashlib, json, os, pathlib, re, shlex, subprocess, sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 REVIEW = HERE / "review.py"
@@ -178,9 +178,10 @@ def main():
     parts = ["A second-model (Gemini) review gated this turn:"]
 
     if blocks:
-        pick = HERE / "review-pick.py"
+        pick = shlex.quote(str(HERE / "review-pick.py"))
         parts.append("\n".join(
-            f"- `{rel}` -> {verdict}; findings: `python3 {pick} --json {tgt}`"
+            f"- `{rel}` -> {verdict}; findings: "
+            f"`python3 {pick} --json {shlex.quote(str(tgt))}`"
             for rel, verdict, tgt in blocks))
         parts.append(
             "Triage the review with me, in this session:\n"

@@ -41,6 +41,9 @@ One paragraph of summary.
 ## Cross-cutting risks
 - Risk one spans steps.
 - Risk two spans steps.
+
+## Blocking issues
+None.
 EOF
 
 out="$tmp/a.json"
@@ -57,6 +60,8 @@ assert_contains "$item1" "What's wrong" "block keeps problem"
 assert_contains "$item1" "The fix" "block keeps fix"
 # plain-bullet section: one item per bullet
 assert_eq "$(jget "$out" 'len(doc["sections"][2]["items"])')" "2" "bullets split per item"
+# placeholder body ("None.") must not become a pickable finding
+assert_eq "$(jget "$out" 'len(doc["sections"][3]["items"])')" "0" "None. body yields no items"
 
 # --- 2. format drift: bare verdict token, no ## sections ---
 cat > "$tmp/b.spec.md" <<'EOF'
