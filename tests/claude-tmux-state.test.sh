@@ -161,15 +161,23 @@ W4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"   # defa
 P4="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W4" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_pane "$P4"
-sleep 0.3   # let W4's shell finish exec'ing so pane_current_command is real
+# W5: wrapper launch (cwork/cpull style) — pane is shell-fronted but the real
+# workload lives on as a child of pane_pid; gc must NOT clear it
+W5="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300; exec zsh')"
+P5="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W5" '#{pane_id}')"
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W5" @claude_state working
+"$REAL_TMUX" -L "$SOCK" set-option -w -t "$W5" @claude_pane "$P5"
+sleep 0.3   # let W4/W5 shells finish exec'ing so pane_current_command is real
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc clears dead-pane window state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_state)"
 check "gc clears dead-pane window tab" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_tab)"
 check "gc keeps live non-shell pane state" working "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W3" @claude_state)"
 check "gc clears shell-reverted pane state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W4" @claude_state)"
+check "gc keeps wrapper-launched workload state" working "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W5" @claude_state)"
 "$REAL_TMUX" -L "$SOCK" kill-window -t "$W2" 2>/dev/null
 "$REAL_TMUX" -L "$SOCK" kill-window -t "$W3" 2>/dev/null
 "$REAL_TMUX" -L "$SOCK" kill-window -t "$W4" 2>/dev/null
+"$REAL_TMUX" -L "$SOCK" kill-window -t "$W5" 2>/dev/null
 
 # --- animator: a detached loop cycles @claude_spinner while a window works ---
 gopt() { "$REAL_TMUX" -L "$SOCK" show-options -gqv "$1"; }
