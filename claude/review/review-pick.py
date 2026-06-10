@@ -13,10 +13,10 @@ Usage:
     review-pick foo.spec.md.review.md
     review-pick --json [target]       # structured findings as JSON, no TUI
 
---json powers the gate's autonomous handling protocol (see stop-review.py):
-Claude runs it to get the findings as structured data, sanity-checks each
-finding on its merits, applies the survivors to the artifact, and reports what
-it applied and rejected. The TUI mode remains for hand-curated human triage.
+--json powers the one-time advisory feedback delivery (see stop-review.py):
+Claude runs it to read the feedback as structured data, judges each point on
+its merits, and takes whatever action it deems appropriate (or none). The TUI
+mode remains for hand-curated human triage.
 
 Needs gum (TUI mode only):  brew install gum
 """
@@ -148,7 +148,7 @@ def split_items(body):
 def kind_of(title):
     t = title.lower()
     if "verdict" in t or "summary" in t:
-        return "verdict"
+        return "context"
     if "good" in t:
         return "good"
     return "pick"
@@ -169,8 +169,10 @@ def main():
     verdict, sections = parse(review.read_text(encoding="utf-8", errors="replace"))
 
     if as_json:
-        doc = {"verdict": verdict, "artifact": artifact_path,
+        doc = {"artifact": artifact_path,
                "review_file": str(review), "sections": []}
+        if verdict != "UNKNOWN":
+            doc["verdict"] = verdict   # legacy verdict-era reviews only
         for title, body in sections:
             kind = kind_of(title)
             sec = {"title": title, "kind": kind}
@@ -193,9 +195,9 @@ def main():
         "--", f"{th['glyph']}  {verdict}")
     style(f"  {artifact_path}", DIM)
 
-    # context panels (verdict + what's good) -- rendered for the human only
+    # context panels (summary + what's good) -- rendered for the human only
     for title, body in sections:
-        if kind_of(title) in ("verdict", "good") and body:
+        if kind_of(title) in ("context", "good") and body:
             style(f"\n  {title}", ACCENT, bold=True)
             fmt_md(body)
 

@@ -20,7 +20,9 @@ outside any git repo. Extend the globs with REVIEW_PATHS (colon-separated).
 Loud, not silent: when the review can't run (no key, Gemini down, timeout),
 the failure is surfaced once per artifact version -- including, for a missing
 key, an instruction to capture it inline -- instead of vanishing quietly. A
-failed review writes no delivered-marker, so it retries on the next change.
+failed review writes no delivered-marker, so it keeps retrying on subsequent
+stops while the artifact remains a candidate (only the repeat WARNING is
+suppressed), and delivers normally once the review succeeds.
 
 Bounded: glob hits that are tracked AND unchanged are skipped -- unless
 recently modified (an artifact written and committed within the same turn is
@@ -186,10 +188,19 @@ def main():
     # through the loud err path below. (More than 16 candidates means waves,
     # which only realistically happens with warm sub-second calls.)
     def run_review(target, kind):
+        cmd = ["uv", "run", str(REVIEW), "--type", kind, "--file", str(target)]
+        # A verdict-era review on disk (pre-advisory format) would otherwise be
+        # delivered as-is via review.py's content-hash guard -- force one fresh
+        # review so the feedback matches the no-verdict contract.
         try:
-            r = subprocess.run(["uv", "run", str(REVIEW), "--type", kind,
-                                "--file", str(target)],
-                               cwd=root, capture_output=True, text=True,
+            head = (target.with_suffix(target.suffix + ".review.md")
+                    .read_text(encoding="utf-8", errors="replace")[:512])
+            if re.search(r"^VERDICT:|^(?:APPROVE|CHANGES|BLOCK)\s*$", head, re.M):
+                cmd.append("--force")
+        except OSError:
+            pass
+        try:
+            r = subprocess.run(cmd, cwd=root, capture_output=True, text=True,
                                timeout=REVIEW_TIMEOUT)
         except subprocess.TimeoutExpired:
             return f"review timed out (>{REVIEW_TIMEOUT}s)"
@@ -293,8 +304,8 @@ def main():
 
     if other:
         parts.append(
-            "WARNING: The Gemini feedback pass could NOT run for these (it will "
-            "retry when the file next changes):\n" + "\n".join(
+            "WARNING: The Gemini feedback pass could NOT run for these (it "
+            "retries on later stops; only this warning is one-time):\n" + "\n".join(
                 f"- `{rel}`: {why}" for rel, _, why in other) +
             "\nTell me this, then continue the work.")
 

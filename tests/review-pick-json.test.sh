@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# review-pick --json: structured findings extraction for the in-session handling
-# protocol (stop-review.py). Pure parsing — no gum, no network, no tmux.
+# review-pick --json: structured feedback extraction for the one-time advisory
+# delivery (stop-review.py). Pure parsing — no gum, no network, no tmux.
+# Covers the current advisory format (## Summary, no verdict) and the legacy
+# verdict-era formats still on disk from older reviews.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 . "$here/lib.sh"
@@ -17,7 +19,7 @@ print(eval(sys.argv[2], {"doc": doc}))
 PY
 }
 
-# --- 1. canonical review: VERDICT prefix, ## sections, bold finding blocks ---
+# --- 1. legacy review: VERDICT prefix, ## sections, bold finding blocks ---
 cat > "$tmp/a.plan.md" <<'EOF'
 # a plan
 EOF
@@ -48,9 +50,9 @@ EOF
 
 out="$tmp/a.json"
 python3 "$PICK" --json "$tmp/a.plan.md" > "$out" || fail "--json run failed"
-assert_eq "$(jget "$out" 'doc["verdict"]')" "CHANGES" "verdict parsed"
+assert_eq "$(jget "$out" 'doc["verdict"]')" "CHANGES" "legacy verdict still parsed"
 assert_contains "$(jget "$out" 'doc["artifact"]')" "a.plan.md" "artifact path"
-assert_eq "$(jget "$out" 'doc["sections"][0]["kind"]')" "verdict" "verdict section kind"
+assert_eq "$(jget "$out" 'doc["sections"][0]["kind"]')" "context" "verdict section is context"
 assert_eq "$(jget "$out" 'doc["sections"][1]["kind"]')" "pick" "critique section kind"
 # bold heading + its bullets collapse into ONE finding per task
 assert_eq "$(jget "$out" 'len(doc["sections"][1]["items"])')" "2" "one item per finding block"
@@ -82,5 +84,30 @@ python3 "$PICK" --json "$tmp/b.spec.md" > "$out" || fail "--json drift run faile
 assert_eq "$(jget "$out" 'doc["verdict"]')" "BLOCK" "bare verdict token parsed"
 assert_eq "$(jget "$out" 'doc["sections"][0]["title"]')" "Findings" "fallback section synthesized"
 assert_eq "$(jget "$out" 'len(doc["sections"][0]["items"])')" "2" "paragraphs become items"
+
+# --- 3. current advisory format: ## Summary, no verdict anywhere ---
+cat > "$tmp/c.plan.md" <<'EOF'
+# a plan
+EOF
+cat > "$tmp/c.plan.md.review.md" <<'EOF'
+<!-- gemini · plan cross-review · 2026-06-10T00:00:00 -->
+
+## Summary
+The most important thing the author should know.
+
+## Step-by-step critique
+- Step 2 lacks a done check.
+- Step 4 hides a dependency.
+
+## Cross-cutting risks
+None.
+EOF
+
+out="$tmp/c.json"
+python3 "$PICK" --json "$tmp/c.plan.md" > "$out" || fail "--json advisory run failed"
+assert_eq "$(jget "$out" '"verdict" in doc')" "False" "advisory review carries no verdict key"
+assert_eq "$(jget "$out" 'doc["sections"][0]["kind"]')" "context" "summary is context, not pickable"
+assert_eq "$(jget "$out" 'len(doc["sections"][1]["items"])')" "2" "advisory critique items parsed"
+assert_eq "$(jget "$out" 'len(doc["sections"][2]["items"])')" "0" "None. section yields no items"
 
 pass

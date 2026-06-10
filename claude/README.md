@@ -8,7 +8,7 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 |---|---|---|
 | `statusline-command.sh` | **Symlinked** to `~/.claude/statusline-command.sh` | Pure stdin-driven renderer, no secrets, fine to live-sync across machines |
 | `settings.example.json` | **Copied once** to `~/.claude/settings.json` if the target doesn't exist; never overwrites | The real `settings.json` accumulates per-machine state (enabled plugins, marketplaces, security flags) — keeping it out of public VC |
-| `review/` | **Symlinked** to `~/.claude/review/` | Scripts + prompts for the second-model spec/plan gate; no secrets (the API key comes from the env). Linked as a unit so the scripts find their `prompts/` |
+| `review/` | **Symlinked** to `~/.claude/review/` | Scripts + prompts for the second-model spec/plan feedback pass; no secrets (the API key comes from the env). Linked as a unit so the scripts find their `prompts/` |
 
 ## Second-model review (`review/`)
 
@@ -20,7 +20,7 @@ A one-time feedback pass that runs a *different* model (Gemini) as an adversaria
 - **`prompts/{spec,plan}.md`** — the reviewer prompts. A git-ignored `prompts/<kind>.local.md` overlay is appended when present, for private project-specific guidance.
 - **`review-on-commit.sh`** — optional per-repo git `post-commit` trigger; not wired by default.
 
-**Backend.** Gemini direct via the Generative Language API — no proxy. Set `GEMINI_API_KEY` (in `~/.extra`). `REVIEW_MODEL` overrides the default `gemini/gemini-3.1-pro-preview`; Langfuse tracing turns on only if `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set. Needs `uv` (present) and `gum` (`brew install gum`, in `brew.sh`). Fails open: if Gemini is unreachable, no review file is written and the gate doesn't block.
+**Backend.** Gemini direct via the Generative Language API — no proxy. Set `GEMINI_API_KEY` (in `~/.extra`). `REVIEW_MODEL` overrides the default `gemini/gemini-3.1-pro-preview`; Langfuse tracing turns on only if `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set. Needs `uv` (present) and `gum` (`brew install gum`, in `brew.sh`). If Gemini is unreachable, no review file is written; the hook surfaces the failure once per artifact version and retries on later stops.
 
 **Wiring.** `settings.example.json` adds `stop-review.py` to the `Stop` and `SubagentStop` arrays. On a machine whose `~/.claude/settings.json` already exists, add the same two lines by hand (see the per-machine checklist).
 

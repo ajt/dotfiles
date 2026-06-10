@@ -156,10 +156,9 @@ def main():
         encoding="utf-8")
     seen.write_text(h)
 
-    # One line to stdout so a hook/transcript shows the gate result at a glance.
+    # One line to stdout so a hook/transcript shows the outcome at a glance.
     print(f"[cross-review] {args.type} {target.name}: {verdict} -> {out}")
-    # Exit 0 always (never block a commit). To use as a hard gate in a PR check,
-    # branch on the verdict token in the review file or have CI parse this line.
+    # Exit 0 always (never block a commit) -- the feedback is advisory.
 
 
 if __name__ == "__main__":
