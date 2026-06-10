@@ -147,7 +147,7 @@ def split_items(body):
 
 def kind_of(title):
     t = title.lower()
-    if "verdict" in t:
+    if "verdict" in t or "summary" in t:
         return "verdict"
     if "good" in t:
         return "good"

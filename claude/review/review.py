@@ -6,9 +6,10 @@
 """Second-model reviewer for specs and plans.
 
 Sends a spec or plan to a non-Claude model (Gemini) for an adversarial review
-and writes the result next to the artifact. The first line of the model's
-output is a machine-readable VERDICT token, so this acts as an approval gate,
-not just advice.
+and writes the structured feedback next to the artifact. Advisory, not a
+gate: the prompts ask for prioritized critique with no verdict, and the
+consumer (Claude, via stop-review.py's one-time delivery, or a human via
+review-pick) decides what to adopt.
 
     review.py --type spec --file path/to/foo.spec.md
     review.py --type plan --file path/to/foo.plan.md
@@ -143,10 +144,10 @@ def main():
         sys.exit(1)
     review = (resp.choices[0].message.content or "").strip()
 
-    # Accept a bare leading token too -- Gemini sometimes drops the "VERDICT: "
-    # prefix despite the prompt (stop-review.py parses with the same leniency).
+    # The prompts no longer request a verdict; tolerate one if an older prompt
+    # (or local overlay) still produces it, purely for the log line below.
     m = re.match(r"(?:VERDICT:\s*)?(APPROVE|CHANGES|BLOCK)\b", review)
-    verdict = m.group(1) if m else "CHANGES"  # fail safe: if unparseable, make a human look
+    verdict = m.group(1) if m else "reviewed"
 
     out = target.with_suffix(target.suffix + ".review.md")
     stamp = datetime.datetime.now().isoformat(timespec="seconds")

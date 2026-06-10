@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# stop-review.py candidate selection + block plumbing, end to end, no network:
-# `uv` is stubbed to emulate review.py's contract (exit 0 if a .review.md sits
-# next to the artifact, else exit 3 = no key), so no Gemini call can ever fire.
-# Guards the regressions found in review: non-ASCII changed paths escaping the
-# gate (-z), committed-in-same-turn artifacts being skipped (fresh window),
-# old tracked-clean artifacts NOT being re-reviewed every stop, and the
-# round limit that stops the autonomous edit/re-review ping-pong.
+# stop-review.py candidate selection + one-time feedback delivery, end to end,
+# no network: `uv` is stubbed to emulate review.py's contract (exit 0 if a
+# .review.md sits next to the artifact, else exit 3 = no key), so no Gemini
+# call can ever fire. Guards: non-ASCII changed paths escaping detection (-z),
+# committed-in-same-turn artifacts being skipped (fresh window), old
+# tracked-clean artifacts NOT being re-reviewed every stop, and -- the core
+# contract -- feedback delivered exactly ONCE per artifact path, with edits
+# never re-triggering it.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd -P)
 . "$here/lib.sh"
@@ -44,42 +45,38 @@ git -C "$repo" add -A
 git -C "$repo" commit -qm artifacts
 touch -t 202601010000 "$repo/docs/superpowers/plans/b-plan.md"
 
-# A: untracked, with a CHANGES review on disk -> must block
+# A: untracked, with a feedback review on disk -> must be delivered
 printf '# a\n' > "$repo/docs/superpowers/plans/a-plan.md"
-printf 'VERDICT: CHANGES\n\n## Verdict\nneeds work\n' \
+printf '## Summary\nneeds thought\n\n## Step-by-step critique\n- a finding\n' \
   > "$repo/docs/superpowers/plans/a-plan.md.review.md"
 
 # D: untracked with a non-ASCII name -> must still be detected (-z plumbing)
 printf '# d\n' > "$repo/plän-plan.md"
 
-out=$(printf '{"cwd":"%s"}' "$repo" \
-  | env REVIEW_STATE_DIR="$sandbox/state" PATH="$stubdir:$PATH" python3 "$SR")
+run_hook() {
+  printf '{"cwd":"%s"}' "$repo" \
+    | env REVIEW_STATE_DIR="$sandbox/state" PATH="$stubdir:$PATH" python3 "$SR"
+}
 
-assert_contains "$out" '"decision": "block"' "gate blocks"
-assert_contains "$out" "a-plan.md\` -> CHANGES" "untracked artifact with CHANGES review blocks"
+out=$(run_hook)
+assert_contains "$out" '"decision": "block"' "feedback delivery blocks once"
+assert_contains "$out" "one-time delivery, no gate" "message is informational"
+assert_contains "$out" "a-plan.md\`; feedback:" "artifact with review gets delivery"
 assert_contains "$out" "c-plan.md" "fresh tracked-clean artifact still reviewed (committed-in-turn)"
 assert_contains "$out" "n-plan.md" "non-ASCII changed path detected (-z)"
 assert_eq "$(printf '%s' "$out" | grep -c 'b-plan.md')" "0" "old tracked-clean artifact skipped"
 
-# second run, same content: block_once markers recorded -> silence (exit 0,
-# no output) so the gate can never trap a session
-out2=$(printf '{"cwd":"%s"}' "$repo" \
-  | env REVIEW_STATE_DIR="$sandbox/state" PATH="$stubdir:$PATH" python3 "$SR")
+# second run, nothing changed: delivered/err markers recorded -> silence
+out2=$(run_hook)
 rc=$?
-assert_eq "$rc" "0" "repeat stop on unchanged content allows"
+assert_eq "$rc" "0" "repeat stop allows"
 assert_empty "$out2" "repeat stop is silent"
 
-# round limit: each new content version blocks again; the third consecutive
-# blocked version must tell Claude to stop editing and defer to the human
-rerun() {
-  printf '# a v%s\n' "$1" > "$repo/docs/superpowers/plans/a-plan.md"
-  printf '{"cwd":"%s"}' "$repo" \
-    | env REVIEW_STATE_DIR="$sandbox/state" PATH="$stubdir:$PATH" python3 "$SR"
-}
-out3=$(rerun 2)
-assert_contains "$out3" '"decision": "block"' "new version blocks again (round 2)"
-assert_eq "$(printf '%s' "$out3" | grep -c 'ROUND LIMIT')" "0" "round 2 has no limit warning"
-out4=$(rerun 3)
-assert_contains "$out4" "ROUND LIMIT" "round 3 defers to the human"
+# the core no-back-and-forth contract: EDITING the delivered artifact must NOT
+# re-trigger delivery -- one review per artifact path, ever
+printf '# a v2, heavily edited in response to feedback\n' \
+  > "$repo/docs/superpowers/plans/a-plan.md"
+out3=$(run_hook)
+assert_empty "$out3" "edited artifact is never re-reviewed or re-delivered"
 
 pass
