@@ -15,11 +15,17 @@
     ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "bash ~/.agents/skills/adversarial-completion-review/hook-challenge.sh" } ] },
-      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state UserPromptSubmit" } ] },
-      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-notice" } ] }
+      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state UserPromptSubmit" } ] }
     ],
     "Notification": [
-      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Notification" } ] }
+      {
+        "matcher": "permission_prompt|elicitation_dialog",
+        "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Notification" } ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Idle" } ]
+      }
     ],
     "SubagentStart": [
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SubagentStart" } ] }
@@ -34,6 +40,9 @@
     "Stop": [
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state Stop" } ] },
       { "hooks": [ { "type": "command", "command": "python3 ~/.claude/review/stop-review.py", "timeout": 120 } ] }
+    ],
+    "StopFailure": [
+      { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state StopFailure" } ] }
     ],
     "SessionEnd": [
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SessionEnd" } ] }

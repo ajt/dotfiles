@@ -3,27 +3,120 @@
 #
 # Invoked by Claude Code hooks with the hook event name as $1, e.g.
 #   ~/bin/claude-tmux-state UserPromptSubmit
-# Sets the window options @claude_state and @claude_subagents on the window that
-# owns $TMUX_PANE, then refreshes the status line. Renders nothing itself — the
-# tab appearance lives in .tmux.conf's window-status-format. No-op outside tmux.
+# Sets the window options @claude_state, @claude_subagents, @claude_tab (the
+# pre-styled tab glyph window-status-format renders) and @claude_pane (the owning
+# pane, so the `gc` tick can clear state when Claude dies) on the window that
+# owns $TMUX_PANE, then refreshes the status line. No-op outside tmux.
 set -u
 
 ev=${1:-}
 pane=${TMUX_PANE:-}
 
-# Not inside tmux (Claude launched in a plain terminal): do nothing, succeed.
-[ -n "${TMUX:-}" ] && [ -n "$pane" ] || exit 0
+# Absolute path to self, so the detached animator re-invocation works under any PATH.
+case "$0" in
+  /*)   SELF="$0" ;;
+  */*)  SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")" ;;
+  *)    SELF="$(command -v -- "$0" 2>/dev/null || printf '%s' "$0")" ;;
+esac
 
-set_state() { tmux set-option -w -t "$pane" @claude_state "$1" 2>/dev/null; }
+# Not inside tmux (Claude launched in a plain terminal): do nothing, succeed.
+[ -n "${TMUX:-}" ] || exit 0
+
+# animate — detached loop that cycles the global @claude_spinner option and
+# repaints the status bar while at least one window is in the working state
+# (the working @claude_tab references #{@claude_spinner} via #{E:...} in
+# window-status-format). Claims @claude_spinner_pid; a concurrently spawned
+# rival claims it back and this instance exits on the ownership check. Exits —
+# clearing the claim — as soon as nothing is working, so it costs nothing idle.
+animate() {
+  tmux set-option -g @claude_spinner_pid "$$" 2>/dev/null || exit 0
+  local i=0 f own
+  while :; do
+    own=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
+    [ "$own" = "$$" ] || exit 0
+    case "$(tmux list-windows -a -F '#{@claude_state}' 2>/dev/null)" in
+      *working*) ;;
+      *) tmux set-option -gu @claude_spinner_pid 2>/dev/null; exit 0 ;;
+    esac
+    # braille frames: the dot grid spans the full cell, so the spinner sits
+    # vertically centered where the old geometric circles hugged the baseline
+    case "$i" in
+      0) f='⣾' ;; 1) f='⣽' ;; 2) f='⣻' ;; 3) f='⢿' ;;
+      4) f='⡿' ;; 5) f='⣟' ;; 6) f='⣯' ;; *) f='⣷' ;;
+    esac
+    i=$(( (i + 1) % 8 ))
+    tmux set-option -g @claude_spinner "$f" \; refresh-client -S 2>/dev/null
+    sleep 0.25
+  done
+}
+if [ "$ev" = animate ]; then animate; exit 0; fi
+
+# ensure_animator — spawn the animator unless a live one already holds the
+# claim. Seeds @claude_spinner so the glyph is never blank before frame one.
+ensure_animator() {
+  local pid
+  pid=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && return 0
+  tmux set-option -g @claude_spinner '⣾' 2>/dev/null
+  nohup "$SELF" animate </dev/null >/dev/null 2>&1 &
+}
+
+# gc — drop @claude_* from windows whose recorded pane no longer exists (claude
+# died without a SessionEnd hook: killed pane, crashed session). Invoked from
+# the status bar's #() tick, not a Claude hook, so it has no TMUX_PANE and must
+# print nothing. The cleared tab repaints on the next status interval.
+gc() {
+  local live w p
+  live=$(tmux list-panes -a -F '#{pane_id}' 2>/dev/null)
+  tmux list-windows -a -F '#{window_id} #{@claude_pane}' 2>/dev/null |
+  while read -r w p; do
+    [ -n "$p" ] || continue
+    printf '%s\n' "$live" | grep -qx "$p" && continue
+    tmux set-option -uw -t "$w" @claude_state 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_subagents 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_tab 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_pane 2>/dev/null
+  done
+}
+if [ "$ev" = gc ]; then gc; exit 0; fi
+
+[ -n "$pane" ] || exit 0
+
+# _tab_for <state> -> the pre-styled glyph fragment window-status-format renders
+# verbatim (tmux draws #[..] styles after expanding #{@claude_tab}). waiting is
+# unstyled: that tab gets a full orange fill from the format itself.
+# Nerd Font glyphs (the patcher centers them in the cell, unlike the baseline-
+# anchored ⊕/✓/? they replaced):  plus-circle,  refresh,  question,  check.
+_tab_for() {
+  case "$1" in
+    working)    printf '%s' ' #[fg=#00d7d7]#{@claude_spinner}#[default] ' ;;
+    subagent)   printf '%s' ' #[fg=#af5fff]#[default] ' ;;
+    compacting) printf '%s' ' #[fg=#8a8a8a]#[default] ' ;;
+    waiting)    printf '%s' '  ' ;;
+    done)       printf '%s' ' #[fg=#00d700]#[default] ' ;;
+    *)          printf '%s' '' ;;
+  esac
+}
+
+set_state() {
+  tmux set-option -w -t "$pane" @claude_state "$1" 2>/dev/null
+  tmux set-option -w -t "$pane" @claude_tab "$(_tab_for "$1")" 2>/dev/null
+  tmux set-option -w -t "$pane" @claude_pane "$pane" 2>/dev/null
+  [ "$1" = working ] && ensure_animator
+}
 set_count() { tmux set-option -w -t "$pane" @claude_subagents "$1" 2>/dev/null; }
 clear_all() {
   tmux set-option -uw -t "$pane" @claude_state 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_subagents 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_tab 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_pane 2>/dev/null
 }
 
 # current subagent depth, sanitised to a non-negative integer
 n=$(tmux show-options -wqv -t "$pane" @claude_subagents 2>/dev/null)
 case "$n" in ''|*[!0-9]*) n=0 ;; esac
+
+cur=$(tmux show-options -wqv -t "$pane" @claude_state 2>/dev/null)
 
 case "$ev" in
   SessionStart)     set_count 0; set_state idle ;;
@@ -32,12 +125,26 @@ case "$ev" in
   Notification)     set_state waiting ;;
   SubagentStart)    n=$((n + 1)); set_count "$n"; set_state subagent ;;
   SubagentStop)
+    # A background subagent can finish after the turn ended — only adjust the
+    # state mid-turn, or a late stop resurrects a phantom "working".
     n=$((n - 1)); [ "$n" -lt 0 ] && n=0
     set_count "$n"
-    if [ "$n" -gt 0 ]; then set_state subagent; else set_state working; fi
+    case "$cur" in
+      working|subagent)
+        if [ "$n" -gt 0 ]; then set_state subagent; else set_state working; fi ;;
+    esac
     ;;
   PreCompact)       set_state compacting ;;
-  Stop)             set_count 0; set_state 'done' ;;
+  Stop|StopFailure) set_count 0; set_state 'done' ;;
+  Idle)
+    # Notification idle_prompt: Claude has sat waiting for input for 60s+. A
+    # busy glyph at that point is stale (interrupt, crash, missed Stop) — quiet
+    # it. done (unacknowledged ✓) and waiting (permission pending) stay put.
+    case "$cur" in
+      working|subagent|compacting) set_count 0; set_state idle ;;
+      *) exit 0 ;;
+    esac
+    ;;
   SessionEnd)       clear_all ;;
   *)                exit 0 ;;
 esac
