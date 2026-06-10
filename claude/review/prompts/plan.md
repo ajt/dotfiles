@@ -33,25 +33,27 @@ Review against these axes:
 - Assumptions not in evidence: anything the plan treats as known that isn't
   established.
 
-Output EXACTLY this structure. The first line must be the verdict token, alone.
+Output EXACTLY this structure (it is parsed mechanically):
 
-VERDICT: APPROVE | CHANGES | BLOCK
-
-(APPROVE = execute as written. CHANGES = execute after the noted fixes. BLOCK =
-do not execute; the plan needs rework.)
-
-## Verdict
-One paragraph: the single most important reason for the verdict.
+## Summary
+One paragraph: the most important thing the author should know about this plan.
 
 ## Step-by-step critique
 Walk the steps in order. For each one worth flagging: the step, what's wrong,
-the fix. Skip steps that are fine — do not pad.
+the fix. Skip steps that are fine — do not pad. If none, write "None."
 
 ## Cross-cutting risks
-Problems that span multiple steps: coupling, integration, data safety.
+Problems that span multiple steps: coupling, integration, data safety. If
+none, write "None."
 
 ## Sequencing I'd change
-Concrete reordering, each with the dependency that forces it.
+Concrete reordering, each with the dependency that forces it. If none, write
+"None."
 
 ## Verification gaps
-Steps whose "done" check is missing or meaningless, and what the real check is.
+Steps whose "done" check is missing or meaningless, and what the real check
+is. If none, write "None."
+
+Your feedback is advisory: the author decides what to adopt. Do not issue
+verdicts, approval decisions, or demands — give the most useful, prioritized
+critique you can.

@@ -11,10 +11,16 @@ Usage:
     review-pick                       # newest *.review.md in the repo
     review-pick specs/foo.spec.md     # the review beside this artifact
     review-pick foo.spec.md.review.md
+    review-pick --json [target]       # structured findings as JSON, no TUI
 
-Needs gum:  brew install gum   (https://github.com/charmbracelet/gum)
+--json powers the one-time advisory feedback delivery (see stop-review.py):
+Claude runs it to read the feedback as structured data, judges each point on
+its merits, and takes whatever action it deems appropriate (or none). The TUI
+mode remains for hand-curated human triage.
+
+Needs gum (TUI mode only):  brew install gum
 """
-import os, re, shutil, subprocess, sys, pathlib
+import json, os, re, shutil, subprocess, sys, pathlib
 
 THEME = {
     "BLOCK":   {"glyph": "✗", "color": "196"},  # red    ✗
@@ -69,23 +75,56 @@ def find_review(arg):
 # ---- parse the review ------------------------------------------------------
 SEC = re.compile(r"^##\s+(.*)$", re.M)
 BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*)$")
+# A whole-line bold heading (e.g. "**Task 3: Add `show`**") — the reviewer uses
+# these to group a finding's "what's wrong"/"the fix" bullets into one block.
+BOLD_HEAD = re.compile(r"^\s*\*\*(.+?)\*\*[:.]?\s*$")
+# Gemini sometimes drops the "VERDICT: " prefix and emits the bare token; accept
+# both, but only near the top of the file so prose can't false-match.
+VERDICT_RE = re.compile(
+    r"^VERDICT:\s*(APPROVE|CHANGES|BLOCK)\b|^(APPROVE|CHANGES|BLOCK)\s*$", re.M)
 
 def parse(text):
     text = re.sub(r"^\s*<!--.*?-->\s*", "", text, flags=re.S)
-    vm = re.search(r"^VERDICT:\s*(APPROVE|CHANGES|BLOCK)\b", text, re.M)
-    verdict = vm.group(1) if vm else "UNKNOWN"
+    vm = VERDICT_RE.search(text[:512])
+    verdict = (vm.group(1) or vm.group(2)) if vm else "UNKNOWN"
     matches = list(SEC.finditer(text))
     sections = []
     for i, m in enumerate(matches):
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         sections.append((m.group(1).strip(), text[start:end].strip()))
+    if not sections:
+        # format drift (no "## " sections): expose the whole critique minus the
+        # verdict line as one pickable section instead of losing it.
+        body = VERDICT_RE.sub("", text, count=1).strip()
+        if body:
+            sections = [("Findings", body)]
     return verdict, sections
 
 def split_items(body):
     lines = body.splitlines()
     items, cur = [], None
-    if any(BULLET.match(l) for l in lines):
+    if any(BOLD_HEAD.match(l) for l in lines):
+        # Block mode: a bold heading plus everything under it is ONE finding
+        # (its bullets pair problem + fix — selecting them apart is meaningless).
+        for l in lines:
+            mh = BOLD_HEAD.match(l)
+            if mh:
+                if cur is not None:
+                    items.append(cur)
+                cur = mh.group(1).strip()
+                continue
+            mb = BULLET.match(l)
+            frag = " ".join((mb.group(1) if mb else l).split())
+            if not frag:
+                continue
+            if cur is None:
+                cur = frag                       # stray text before the first heading
+            else:
+                cur += (" — " if mb else " ") + frag
+        if cur is not None:
+            items.append(cur)
+    elif any(BULLET.match(l) for l in lines):
         for l in lines:
             mb = BULLET.match(l)
             if mb:
@@ -101,12 +140,15 @@ def split_items(body):
             p = " ".join(para.split())
             if p:
                 items.append(p)
-    return [i for i in items if i]
+    # Drop placeholder bodies ("None.", "N/A") — a section with no findings
+    # must not offer a pickable non-finding.
+    return [i.strip() for i in items
+            if i and i.strip() and i.strip().rstrip(".").lower() not in ("none", "n/a")]
 
 def kind_of(title):
     t = title.lower()
-    if "verdict" in t:
-        return "verdict"
+    if "verdict" in t or "summary" in t:
+        return "context"
     if "good" in t:
         return "good"
     return "pick"
@@ -117,11 +159,32 @@ def truncate(s, n=110):
 
 # ---- main ------------------------------------------------------------------
 def main():
-    need_gum()
-    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    argv = list(sys.argv[1:])
+    as_json = "--json" in argv
+    if as_json:
+        argv.remove("--json")
+    arg = argv[0] if argv else None
     review = find_review(arg)
     artifact_path = str(review)[: -len(".review.md")]
     verdict, sections = parse(review.read_text(encoding="utf-8", errors="replace"))
+
+    if as_json:
+        doc = {"artifact": artifact_path,
+               "review_file": str(review), "sections": []}
+        if verdict != "UNKNOWN":
+            doc["verdict"] = verdict   # legacy verdict-era reviews only
+        for title, body in sections:
+            kind = kind_of(title)
+            sec = {"title": title, "kind": kind}
+            if kind == "pick":
+                sec["items"] = split_items(body)
+            else:
+                sec["body"] = " ".join(body.split())
+            doc["sections"].append(sec)
+        print(json.dumps(doc, indent=2))
+        return
+
+    need_gum()
     th = THEME.get(verdict, THEME["UNKNOWN"])
 
     print()
@@ -132,9 +195,9 @@ def main():
         "--", f"{th['glyph']}  {verdict}")
     style(f"  {artifact_path}", DIM)
 
-    # context panels (verdict + what's good) -- rendered for the human only
+    # context panels (summary + what's good) -- rendered for the human only
     for title, body in sections:
-        if kind_of(title) in ("verdict", "good") and body:
+        if kind_of(title) in ("context", "good") and body:
             style(f"\n  {title}", ACCENT, bold=True)
             fmt_md(body)
 

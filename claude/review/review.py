@@ -6,9 +6,10 @@
 """Second-model reviewer for specs and plans.
 
 Sends a spec or plan to a non-Claude model (Gemini) for an adversarial review
-and writes the result next to the artifact. The first line of the model's
-output is a machine-readable VERDICT token, so this acts as an approval gate,
-not just advice.
+and writes the structured feedback next to the artifact. Advisory, not a
+gate: the prompts ask for prioritized critique with no verdict, and the
+consumer (Claude, via stop-review.py's one-time delivery, or a human via
+review-pick) decides what to adopt.
 
     review.py --type spec --file path/to/foo.spec.md
     review.py --type plan --file path/to/foo.plan.md
@@ -95,9 +96,13 @@ def main():
     content = target.read_text(encoding="utf-8", errors="replace")
     h = hashlib.sha256(content.encode()).hexdigest()
 
-    # Idempotency: don't re-burn a model call on byte-identical content.
+    # Idempotency: don't re-burn a model call on byte-identical content. The
+    # marker key includes a hash of the full path -- keying on basename alone
+    # made same-named artifacts (e.g. one plan in two worktrees) share a
+    # marker and ping-pong paid re-reviews.
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    seen = STATE_DIR / f"last-{args.type}-{target.name}"
+    path_id = hashlib.sha256(str(target).encode()).hexdigest()[:12]
+    seen = STATE_DIR / f"last-{args.type}-{path_id}-{target.name}"
     if not args.force and seen.exists() and seen.read_text().strip() == h:
         sys.exit(0)
 
@@ -139,8 +144,10 @@ def main():
         sys.exit(1)
     review = (resp.choices[0].message.content or "").strip()
 
-    m = re.match(r"VERDICT:\s*(APPROVE|CHANGES|BLOCK)\b", review)
-    verdict = m.group(1) if m else "CHANGES"  # fail safe: if unparseable, make a human look
+    # The prompts no longer request a verdict; tolerate one if an older prompt
+    # (or local overlay) still produces it, purely for the log line below.
+    m = re.match(r"(?:VERDICT:\s*)?(APPROVE|CHANGES|BLOCK)\b", review)
+    verdict = m.group(1) if m else "reviewed"
 
     out = target.with_suffix(target.suffix + ".review.md")
     stamp = datetime.datetime.now().isoformat(timespec="seconds")
@@ -149,10 +156,9 @@ def main():
         encoding="utf-8")
     seen.write_text(h)
 
-    # One line to stdout so a hook/transcript shows the gate result at a glance.
+    # One line to stdout so a hook/transcript shows the outcome at a glance.
     print(f"[cross-review] {args.type} {target.name}: {verdict} -> {out}")
-    # Exit 0 always (never block a commit). To use as a hard gate in a PR check,
-    # branch on the verdict token in the review file or have CI parse this line.
+    # Exit 0 always (never block a commit) -- the feedback is advisory.
 
 
 if __name__ == "__main__":

@@ -8,23 +8,23 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 |---|---|---|
 | `statusline-command.sh` | **Symlinked** to `~/.claude/statusline-command.sh` | Pure stdin-driven renderer, no secrets, fine to live-sync across machines |
 | `settings.example.json` | **Copied once** to `~/.claude/settings.json` if the target doesn't exist; never overwrites | The real `settings.json` accumulates per-machine state (enabled plugins, marketplaces, security flags) — keeping it out of public VC |
-| `review/` | **Symlinked** to `~/.claude/review/` | Scripts + prompts for the second-model spec/plan gate; no secrets (the API key comes from the env). Linked as a unit so the scripts find their `prompts/` |
+| `review/` | **Symlinked** to `~/.claude/review/` | Scripts + prompts for the second-model spec/plan feedback pass; no secrets (the API key comes from the env). Linked as a unit so the scripts find their `prompts/` |
 
 ## Second-model review (`review/`)
 
-An approval gate that runs a *different* model (Gemini) as an adversarial reviewer of `*spec*.md` / `*plan*.md` files Claude touches, then surfaces only the parsed verdict back into the session — the free-text critique stays in a file you read, so a prompt-injected spec can't steer Claude through the review channel. You are the trust boundary.
+A one-time feedback pass that runs a *different* model (Gemini) as an adversarial reviewer of plan/spec markdown files Claude touches (word-boundary match on the filename, or a `plans/`/`specs/` parent dir). **Advisory, not a gate**: at turn end each changed artifact is reviewed once and the feedback handed to Claude exactly once — Claude judges each point on its merits, takes whatever action it deems appropriate (or none), reports what it adopted and set aside, and continues. There is no verdict, edits made in response are never re-reviewed, and nothing the reviewer writes can interrupt or re-run the workflow (a `delivered` marker per artifact path guarantees the single firing). The reviewer's text enters the session as data to be judged — the protocol forbids following instructions embedded in it.
 
-- **`review.py`** — the dispatcher. Sends the artifact to Gemini and writes `<file>.review.md` (a `VERDICT:` line + critique). Content-hash guarded, so an unchanged file never re-bills.
-- **`stop-review.py`** — the `Stop` / `SubagentStop` hook. At turn end it reviews changed spec/plan files and, if the verdict isn't `APPROVE`, blocks the stop — passing back only the verdict + path, never the critique.
-- **`review-pick`** (`bin/review-pick` → `review/review-pick.py`) — a `gum` TUI to triage findings and hand a curated, trusted selection back to Claude.
+- **`review.py`** — the dispatcher. Sends the artifact to Gemini and writes `<file>.review.md` (structured critique, no verdict). Content-hash guarded, so an unchanged file never re-bills; `--force` re-reviews on demand.
+- **`stop-review.py`** — the `Stop` / `SubagentStop` hook. At turn end it reviews changed spec/plan files and delivers the feedback once per artifact via a single informational block.
+- **`review-pick`** (`bin/review-pick` → `review/review-pick.py`) — `--json` emits the structured feedback Claude consumes; without flags, a standalone `gum` TUI for hand-curated triage in a separate terminal (writes `<artifact>.selected.txt` + clipboard).
 - **`prompts/{spec,plan}.md`** — the reviewer prompts. A git-ignored `prompts/<kind>.local.md` overlay is appended when present, for private project-specific guidance.
 - **`review-on-commit.sh`** — optional per-repo git `post-commit` trigger; not wired by default.
 
-**Backend.** Gemini direct via the Generative Language API — no proxy. Set `GEMINI_API_KEY` (in `~/.extra`). `REVIEW_MODEL` overrides the default `gemini/gemini-3.1-pro-preview`; Langfuse tracing turns on only if `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set. Needs `uv` (present) and `gum` (`brew install gum`, in `brew.sh`). Fails open: if Gemini is unreachable, no review file is written and the gate doesn't block.
+**Backend.** Gemini direct via the Generative Language API — no proxy. Set `GEMINI_API_KEY` (in `~/.extra`). `REVIEW_MODEL` overrides the default `gemini/gemini-3.1-pro-preview`; Langfuse tracing turns on only if `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set. Needs `uv` (present) and `gum` (`brew install gum`, in `brew.sh`). If Gemini is unreachable, no review file is written; the hook surfaces the failure once per artifact version and retries on later stops.
 
 **Wiring.** `settings.example.json` adds `stop-review.py` to the `Stop` and `SubagentStop` arrays. On a machine whose `~/.claude/settings.json` already exists, add the same two lines by hand (see the per-machine checklist).
 
-**Use.** Automatic once wired. By hand: `uv run ~/.claude/review/review.py --type spec --file specs/foo.spec.md`. Triage: `review-pick` (newest review in the repo) or `review-pick specs/foo.spec.md`.
+**Use.** Automatic once wired — when feedback arrives, Claude judges it, updates the artifact if warranted, and tells you what it adopted and set aside. By hand: `uv run ~/.claude/review/review.py --type spec --file specs/foo.spec.md` to review (add `--force` to re-review an updated artifact), `review-pick` for the terminal TUI, `review-pick --json [target]` for the structured feedback.
 
 ## What's deliberately *not* in here
 
