@@ -87,7 +87,7 @@ check "late SubagentStop keeps done" done "$(opt @claude_state)"
 # --- StopFailure (API-error turn end) counts as a finished turn ---
 run UserPromptSubmit
 run StopFailure
-check "StopFailure state" done "$(opt @claude_state)"
+check "StopFailure state" error "$(opt @claude_state)"
 check "StopFailure count" 0 "$(opt @claude_subagents)"
 
 # --- Idle (Notification idle_prompt): quiets a stale busy state only ---
@@ -103,6 +103,9 @@ check "Idle keeps done" done "$(opt @claude_state)"
 run Notification
 run Idle
 check "Idle keeps waiting" waiting "$(opt @claude_state)"
+run StopFailure
+run Idle
+check "Idle keeps error" error "$(opt @claude_state)"
 
 # --- compaction + teardown ---
 run PreCompact
@@ -122,7 +125,7 @@ run UserPromptSubmit
 check "working tab" ' #[fg=#00d7d7]#{@claude_spinner}#[default] ' "$(opt @claude_tab)"
 
 run SubagentStart
-check "subagent tab" ' #[fg=#af5fff]#[default] ' "$(opt @claude_tab)"
+check "subagent tab" ' #[fg=#af5fff]#{@claude_spinner2}#[default] ' "$(opt @claude_tab)"
 
 run SubagentStop
 check "subagent stop -> working tab" ' #[fg=#00d7d7]#{@claude_spinner}#[default] ' "$(opt @claude_tab)"
@@ -135,6 +138,9 @@ check "compacting tab" ' #[fg=#8a8a8a]#[default] ' "$(opt @claude_tab)"
 
 run Stop
 check "done tab" ' #[fg=#00d700]#[default] ' "$(opt @claude_tab)"
+
+run StopFailure
+check "error tab (unstyled, inherits red fill)" '  ' "$(opt @claude_tab)"
 
 run SessionStart
 check "idle tab is empty" '' "$(opt @claude_tab)"
@@ -192,6 +198,21 @@ run Stop
 cleared=0
 for i in $(seq 1 40); do [ -z "$(gopt @claude_spinner_pid)" ] && { cleared=1; break; }; sleep 0.1; done
 check "animator exits once nothing is working" 1 "$cleared"
+
+# --- animator also covers subagent state, cycling the pie spinner ---
+run SubagentStart
+sp2=''; pid_ok=0
+for i in $(seq 1 40); do
+  sp2=$(gopt @claude_spinner2); pid=$(gopt @claude_spinner_pid)
+  [ -n "$sp2" ] && [ -n "$pid" ] && { pid_ok=1; break; }; sleep 0.1
+done
+check "animator runs for subagent state" 1 "$pid_ok"
+case "$sp2" in 󰪞|󰪟|󰪠|󰪡|󰪢|󰪣|󰪤|󰪥) pie_ok=1 ;; *) pie_ok=0 ;; esac
+check "pie spinner frame valid" 1 "$pie_ok"
+run Stop
+cleared=0
+for i in $(seq 1 40); do [ -z "$(gopt @claude_spinner_pid)" ] && { cleared=1; break; }; sleep 0.1; done
+check "animator exits after subagent turn ends" 1 "$cleared"
 
 # --- outside tmux: no error, exit 0 ---
 TMUX= TMUX_PANE= bash "$SCRIPT" Stop; rc=$?
