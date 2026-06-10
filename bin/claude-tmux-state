@@ -61,23 +61,38 @@ ensure_animator() {
   nohup "$SELF" animate </dev/null >/dev/null 2>&1 &
 }
 
-# gc — drop @claude_* from windows whose recorded pane no longer exists, OR
-# whose pane's foreground process has reverted to a bare shell (claude died
-# hard — crash, SIGKILL — without a SessionEnd hook, but the pane survived;
-# this also stops the animator from looping forever on the stuck "working").
-# Invoked from the status bar's #() tick, not a Claude hook, so it has no
-# TMUX_PANE and must print nothing. The cleared tab repaints next interval.
+# gc — drop @claude_* from windows whose Claude died without a SessionEnd hook
+# (crash, SIGKILL, killed pane) but whose stale "working" would otherwise stick
+# forever — and keep the animator from looping on it. A window is stale when
+# its recorded pane is gone, or the pane is fronted by a bare shell AND that
+# shell has no live non-shell child (a cwork/cpull wrapper shell reports zsh
+# for the whole session while claude runs as its child; a suspended claude is
+# a child too — both must be kept). Invoked from the status bar's #() tick,
+# not a Claude hook, so it has no TMUX_PANE and must print nothing.
+_is_shell() {
+  case "$1" in
+    sh|bash|zsh|fish|dash|ksh|tcsh|-sh|-bash|-zsh|-fish) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 gc() {
-  local live w p cmd
-  live=$(tmux list-panes -a -F '#{pane_id} #{pane_current_command}' 2>/dev/null)
+  local live procs w p cmd panepid kid alive
+  live=$(tmux list-panes -a -F '#{pane_id} #{pane_pid} #{pane_current_command}' 2>/dev/null)
+  procs=$(ps -axo ppid=,comm= 2>/dev/null)
   tmux list-windows -a -F '#{window_id} #{@claude_pane}' 2>/dev/null |
   while read -r w p; do
     [ -n "$p" ] || continue
-    cmd=$(printf '%s\n' "$live" | awk -v p="$p" '$1 == p { print $2; exit }')
-    case "$cmd" in
-      ''|sh|bash|zsh|fish|dash|ksh|tcsh|-sh|-bash|-zsh|-fish) ;;  # gone or bare shell -> clear
-      *) continue ;;                                              # something still running
-    esac
+    set -- $(printf '%s\n' "$live" | awk -v p="$p" '$1 == p { print $2, $3; exit }')
+    panepid=${1:-}; cmd=${2:-}
+    if [ -n "$cmd" ]; then
+      _is_shell "$cmd" || continue              # claude (or something) in the foreground
+      alive=''
+      for kid in $(printf '%s\n' "$procs" | awk -v p="$panepid" '$1 == p { print $2 }'); do
+        kid=${kid##*/}
+        _is_shell "$kid" || { alive=1; break; } # wrapper shell still parenting a workload
+      done
+      [ -n "$alive" ] && continue
+    fi
     tmux set-option -uw -t "$w" @claude_state 2>/dev/null
     tmux set-option -uw -t "$w" @claude_subagents 2>/dev/null
     tmux set-option -uw -t "$w" @claude_tab 2>/dev/null
