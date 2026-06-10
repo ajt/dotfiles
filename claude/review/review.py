@@ -95,9 +95,13 @@ def main():
     content = target.read_text(encoding="utf-8", errors="replace")
     h = hashlib.sha256(content.encode()).hexdigest()
 
-    # Idempotency: don't re-burn a model call on byte-identical content.
+    # Idempotency: don't re-burn a model call on byte-identical content. The
+    # marker key includes a hash of the full path -- keying on basename alone
+    # made same-named artifacts (e.g. one plan in two worktrees) share a
+    # marker and ping-pong paid re-reviews.
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    seen = STATE_DIR / f"last-{args.type}-{target.name}"
+    path_id = hashlib.sha256(str(target).encode()).hexdigest()[:12]
+    seen = STATE_DIR / f"last-{args.type}-{path_id}-{target.name}"
     if not args.force and seen.exists() and seen.read_text().strip() == h:
         sys.exit(0)
 

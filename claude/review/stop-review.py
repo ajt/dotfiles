@@ -25,19 +25,20 @@ key, an instruction to capture it inline -- instead of failing open quietly.
 Loop-safe: blocks on a given artifact only while its content keeps changing.
 Must be wired SYNCHRONOUSLY (no "async") -- the gate needs Claude to wait.
 
-Bounded: glob hits that are tracked AND unchanged are skipped (they cannot
-have moved this turn; the globs exist for gitignored / outside-repo
-artifacts), the remaining reviews run in parallel, and each review subprocess
-gets its own timeout that surfaces as a loud one-time block. The first
-version reviewed every glob-matched artifact serially -- a handful of
-never-reviewed artifacts meant several serial Gemini calls, which blew the
-hook's 120s budget, so Claude Code killed the hook and the gate failed open
-silently on every stop.
+Bounded: glob hits that are tracked AND unchanged are skipped -- unless
+recently modified (an artifact written and committed within the same turn is
+tracked-and-clean at stop time but still needs its review). The remaining
+reviews run concurrently in one wave, and each review subprocess gets its own
+timeout that surfaces as a loud one-time block. The first version reviewed
+every glob-matched artifact serially -- a handful of never-reviewed artifacts
+meant several serial Gemini calls, which blew the hook's 120s budget, so
+Claude Code killed the hook and the gate failed open silently on every stop.
 """
-import hashlib, json, os, pathlib, re, shlex, subprocess, sys
+import hashlib, json, os, pathlib, re, shlex, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 
 REVIEW_TIMEOUT = 100   # seconds per review.py call; hook budget is 120
+FRESH_WINDOW = 3600    # tracked-and-clean artifacts younger than this still review
 
 HERE = pathlib.Path(__file__).resolve().parent
 REVIEW = HERE / "review.py"
@@ -74,14 +75,15 @@ def git_changed(root: pathlib.Path):
     Empty set if `root` isn't a git repo (the git calls just fail) -- the glob
     pass below still finds known plan/spec locations in that case."""
     seen = set()
-    for cmd in (["git", "diff", "--name-only", "HEAD"],
-                ["git", "diff", "--name-only", "--cached"],
-                ["git", "ls-files", "--others", "--exclude-standard"]):
+    # -z everywhere: without it git C-quotes non-ASCII paths, the mangled path
+    # never matches git_tracked's real one, and the artifact escapes the gate.
+    for cmd in (["git", "diff", "--name-only", "-z", "HEAD"],
+                ["git", "diff", "--name-only", "-z", "--cached"],
+                ["git", "ls-files", "--others", "--exclude-standard", "-z"]):
         r = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
         if r.returncode != 0:
             continue
-        for line in r.stdout.splitlines():
-            line = line.strip()
+        for line in r.stdout.split("\0"):
             if line:
                 seen.add((root / line).resolve())
     return seen
@@ -141,10 +143,22 @@ def main():
     STATE.mkdir(parents=True, exist_ok=True)
 
     changed = git_changed(root)
+    tracked_clean = git_tracked(root) - changed
+    now = time.time()
+
+    def is_fresh(p):
+        try:
+            return now - p.stat().st_mtime < FRESH_WINDOW
+        except OSError:
+            return False
+
     # A glob hit that is tracked and unchanged cannot have moved this turn --
-    # skip it. The globs exist for gitignored / outside-repo artifacts, which
-    # survive this filter (git_tracked is empty outside a repo).
-    candidates = changed | (glob_paths({root, cwd}) - (git_tracked(root) - changed))
+    # skip it -- UNLESS it was modified recently: an artifact written and
+    # committed within the same turn is tracked-and-clean at stop time but
+    # still needs its review. The globs exist for gitignored / outside-repo
+    # artifacts, which always survive (git_tracked is empty outside a repo).
+    candidates = changed | {p for p in glob_paths({root, cwd})
+                            if p not in tracked_clean or is_fresh(p)}
 
     targets = []
     for target in sorted(candidates):
@@ -152,22 +166,27 @@ def main():
         if kind and target.is_file():
             targets.append((target, kind))
 
-    # Reviews run concurrently (they are network-bound Gemini calls) with a
-    # per-call timeout, so one slow/cold artifact can't eat the whole hook
-    # budget and get the gate killed from outside. A timeout returns None and
-    # is surfaced through the loud err path below.
+    # Reviews run concurrently (they are network-bound Gemini calls) in ONE
+    # wave, each with its own timeout, so no single slow/cold artifact -- nor
+    # a serial pile-up -- can eat the whole hook budget and get the gate
+    # killed from outside. Failures return a reason string and surface
+    # through the loud err path below. (More than 16 candidates means waves,
+    # which only realistically happens with warm sub-second calls.)
     def run_review(target, kind):
         try:
-            return subprocess.run(["uv", "run", str(REVIEW), "--type", kind,
-                                   "--file", str(target)],
-                                  cwd=root, capture_output=True, text=True,
-                                  timeout=REVIEW_TIMEOUT)
+            r = subprocess.run(["uv", "run", str(REVIEW), "--type", kind,
+                                "--file", str(target)],
+                               cwd=root, capture_output=True, text=True,
+                               timeout=REVIEW_TIMEOUT)
         except subprocess.TimeoutExpired:
-            return None
+            return f"review timed out (>{REVIEW_TIMEOUT}s)"
+        except OSError as e:
+            return f"could not run review: {e}"
+        return r
 
     results = []
     if targets:
-        with ThreadPoolExecutor(max_workers=min(8, len(targets))) as ex:
+        with ThreadPoolExecutor(max_workers=min(16, len(targets))) as ex:
             results = list(ex.map(lambda tk: run_review(*tk), targets))
 
     blocks, errors = [], []
@@ -176,11 +195,10 @@ def main():
 
         review_file = target.with_suffix(target.suffix + ".review.md")
 
-        if r is None:
-            # Gemini call ran past REVIEW_TIMEOUT -> loud, once per version.
+        if isinstance(r, str):
+            # The review never ran to completion -> loud, once per version.
             if block_once(target, "err-" + kind):
-                errors.append((disp, kind,
-                               f"review timed out (>{REVIEW_TIMEOUT}s)"))
+                errors.append((disp, kind, r))
             continue
 
         # Branch on review.py's exit code, NOT on whether a .review.md exists: a
