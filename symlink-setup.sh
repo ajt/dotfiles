@@ -126,41 +126,6 @@ ln -s "$source" "$target"
 echo "  LINK  $target → $source"
 done
 
-# ─── ~/.claude subdirectories (symlinked whole, like .config/ghostty) ────────
-# The second-model review kit's scripts resolve prompts/ relative to themselves,
-# so the directory is linked as a unit rather than file-by-file.
-CLAUDE_SYMLINK_DIRS=(
-  review
-)
-
-for dir in "${CLAUDE_SYMLINK_DIRS[@]}"; do
-  source="$DOTFILES_DIR/claude/$dir"
-  target="$HOME/.claude/$dir"
-
-  if [ ! -e "$source" ]; then
-    echo "  SKIP  .claude/$dir (not found in dotfiles)"
-    continue
-  fi
-
-  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-    echo "  OK    .claude/$dir"
-    continue
-  fi
-
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-    echo
-    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-      echo "  SKIP  .claude/$dir"
-      continue
-    fi
-    rm -rf "$target"
-  fi
-
-  ln -s "$source" "$target"
-  echo "  LINK  $target → $source"
-done
-
 # One-shot copy: template → real file, only if real file is missing.
 example="$DOTFILES_DIR/claude/settings.example.json"
 target="$HOME/.claude/settings.json"

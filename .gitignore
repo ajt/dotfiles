@@ -21,13 +21,6 @@ __pycache__/
 .config/karabiner/automatic_backups/
 .config/karabiner/assets/
 
-# second-model review kit: private per-project prompt overlays + any runtime
-# state that lands inside the symlinked dir (default state dir is ~/.cache)
-claude/review/prompts/*.local.md
-claude/review/.state/
-# generated reviewer output (untrusted external-model text, read locally only)
-*.review.md
-
 # git worktrees (feature work happens in .worktrees/<slug>, matching the
 # perfect repo convention)
 .worktrees/
