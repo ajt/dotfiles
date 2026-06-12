@@ -78,14 +78,21 @@ root. Excluded from git via `.git/info/exclude` (never edits tracked
 
 ## Iteration
 
-The user reacts in chat ("variant 3, more whitespace, steal the nav from
-variant 1"). Each reaction starts a new round directory:
+The user reacts in chat; each reaction starts a new round directory. The
+winner's design direction is locked from then on. Feedback is classified
+first (added 2026-06-12 after live use):
 
-- Variant 1 of the new round is the faithful winner with the requested
-  changes applied.
-- Remaining variants explore along the axis the user flagged (e.g. four
-  different takes on "more whitespace").
-- Same parallel-subagent + gallery machinery; repeat until the user is happy.
+- **Surgical** (exact, one correct outcome — "remove the # symbols"): no
+  agents; the winning file(s) are copied into the new round and edited
+  directly, avoiding regeneration drift. Multiple finalists may be kept and
+  refined this way, with the gallery showing only them.
+- **Directional** (ambiguous — "more whitespace"): variant 1 of the new
+  round is the faithful winner-plus-feedback; remaining variants are
+  distinct parallel-agent interpretations of the same feedback.
+- **Mixed**: surgical parts apply to every variant identically; only the
+  directional parts fan out.
+
+Same gallery machinery either way; repeat until the user is happy.
 
 ## Promotion
 
