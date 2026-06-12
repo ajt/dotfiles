@@ -195,9 +195,11 @@ const ROUND = {
 
 Omit `knobs` entirely when unused; omit `note` when there's nothing to say.
 Variants you generate follow the theme convention, so `themed: true`; mark
-`themed: false` only for imported/legacy files — the gallery disables the
-theme buttons (with an explanatory tooltip) when no variant in the round is
-themed, so the control never silently no-ops.
+`themed: false` only for imported/legacy files. The gallery disables the
+theme buttons (with an explanatory tooltip) when NO variant in the round is
+themed. In a MIXED round the buttons stay enabled and un-themed variants
+won't respond — say which ones in the round's `note` so the user isn't left
+guessing. Prefer all-or-nothing rounds.
 
 When you create round N, UPDATE the `rounds` array in EVERY existing round's
 variants.js (all of them list all rounds; the gallery highlights the current

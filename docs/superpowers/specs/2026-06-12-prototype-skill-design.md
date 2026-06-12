@@ -69,7 +69,8 @@ directory:
 - Grid of cards, one per variant: direction name, rationale, and the variant
   rendered in an iframe; click a card to open the variant full-screen in a
   new tab.
-- Round navigation: links to previous rounds' galleries.
+- Round navigation: all rounds listed, current round highlighted and
+  non-clickable.
 - Open it with `open index.html` (macOS).
 
 **Output location:** `.prototypes/<feature-slug>/round-<N>/` in the project
@@ -107,9 +108,13 @@ HTML/CSS or adapting it into the project's templating as requested.
 
 Ten additions, grouped by stage. The gallery becomes a shared asset
 (`claude/skills/prototype/assets/gallery-template.html`); each round writes a
-`variants.js` data file (`const ROUND = {slug, round, prevRounds, note,
-knobs?, variants:[{n, file, direction, rationale}]}`) and copies the template
-as its `index.html`.
+`variants.js` data file (`const ROUND = {slug, round, rounds, note, knobs?,
+variants:[{n, file, direction, rationale, themed}]}`) and copies the template
+as its `index.html`. `rounds` lists ALL rounds (every existing round's
+variants.js is updated when a new round starts); the gallery renders the full
+round list with the current round highlighted. `themed` marks variants that
+implement the dual-palette convention; the theme buttons are disabled with a
+tooltip when none do.
 
 **Gallery (template features):**
 1. *Viewport toggles* — header buttons (390px / 768px / full) resizing all
@@ -123,8 +128,10 @@ as its `index.html`.
 **Generation (SKILL.md conventions):**
 4. *Light/dark first-class* — every variant ships both palettes via
    `:root[data-theme]` custom props; a boot script reads `?theme=` (falling
-   back to `prefers-color-scheme`); the gallery's sun/moon toggle reloads
-   iframes with the param. Variants lacking support ignore the param.
+   back to `prefers-color-scheme`); the gallery's explicit dark/light buttons
+   (active one highlighted, initialized from the OS preference) reload
+   iframes and full-screen links with the param. Variants lacking support
+   ignore the param — the buttons are disabled when no variant supports it.
 5. *Design-token awareness (react-web)* — detect project tokens
    (tailwind config, `:root` custom props, theme files); when found, the
    last two of five variants are token-constrained ("in our design system"),

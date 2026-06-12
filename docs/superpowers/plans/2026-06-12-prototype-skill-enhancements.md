@@ -18,16 +18,22 @@
 const ROUND = {
   slug: "pricing-page",
   round: 3,
-  prevRounds: [1, 2],
+  rounds: [1, 2, 3],            // ALL rounds incl. this one; kept updated in every round's variants.js
   note: "optional banner text",
   knobs: [ // optional; react-web rounds only
     { key: "used", label: "API calls used", type: "number", default: 84211 }
   ],
   variants: [
-    { n: 1, file: "variant-1-retro-terminal.html", direction: "retro-terminal", rationale: "one line" }
+    { n: 1, file: "variant-1-retro-terminal.html", direction: "retro-terminal",
+      rationale: "one line", themed: true } // themed: implements the dual-palette ?theme= convention
   ]
 };
 ```
+
+(Superseded mid-execution: the original `prevRounds` contract and single
+theme-toggle button were replaced after live user testing — `rounds` +
+current-round highlight, explicit dark/light buttons, `themed` capability
+flag with disabled-state. SKILL.md is the authoritative contract.)
 
 **Theme convention** (every variant, all modes): palettes under
 `:root[data-theme="dark"]` and `:root[data-theme="light"]`; first script in

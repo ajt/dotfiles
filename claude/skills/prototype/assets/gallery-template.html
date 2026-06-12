@@ -142,16 +142,17 @@
     card.innerHTML =
       '<div class="cardhead">' +
         '<button class="pick' + (store.picks[v.n] ? " on" : "") + '" title="pick">★</button>' +
-        "<h2>" + v.n + " · " + v.direction + "</h2>" +
+        "<h2></h2>" +
         '<label style="font-size:11px;color:#777">cmp <input type="checkbox" class="cmp"></label>' +
       "</div>" +
       "<p></p>" +
       '<div class="frame"><iframe loading="lazy"></iframe></div>' +
       '<textarea class="notes" placeholder="notes on this variant…"></textarea>' +
       '<a target="_blank">open full screen ↗</a>';
+    card.querySelector("h2").textContent = v.n + " · " + v.direction;
     card.querySelector("p").textContent = v.rationale;
     card.querySelector("iframe").src = frameSrc(v.file);
-    var link = card.querySelector("a"); link.href = v.file;
+    var link = card.querySelector("a"); link.href = frameSrc(v.file);
     var noteEl = card.querySelector(".notes");
     noteEl.value = store.notes[v.n] || "";
     noteEl.addEventListener("input", function () { store.notes[v.n] = noteEl.value; save(); });
@@ -198,24 +199,26 @@
         if (theme === b.dataset.th) return;
         theme = b.dataset.th;
         paintTheme();
-        document.querySelectorAll("main iframe").forEach(function (f, i) {
-          f.src = frameSrc(R.variants[i].file);
+        document.querySelectorAll("main .card").forEach(function (c, i) {
+          c.querySelector("iframe").src = frameSrc(R.variants[i].file);
+          c.querySelector("a").href = frameSrc(R.variants[i].file);
         });
       });
     });
   }
 
   // knobs
+  var knobBroadcast = null; // set when the round declares knobs; reused by compare overlay
   if (R.knobs && R.knobs.length) {
     var kn = document.getElementById("knobs");
     kn.hidden = false;
     var props = {};
     R.knobs.forEach(function (k) { props[k.key] = k.default; });
-    function broadcast() {
+    var broadcast = knobBroadcast = function () {
       document.querySelectorAll("iframe").forEach(function (f) {
         try { f.contentWindow.postMessage({ type: "proto:props", props: props }, "*"); } catch (e) {}
       });
-    }
+    };
     R.knobs.forEach(function (k) {
       var lab = document.createElement("label");
       lab.textContent = k.label + " ";
@@ -286,6 +289,7 @@
       var d = document.createElement("div");
       var h = document.createElement("h3"); h.textContent = v.n + " · " + v.direction;
       var f = document.createElement("iframe"); f.src = frameSrc(v.file);
+      if (knobBroadcast) f.addEventListener("load", function () { setTimeout(knobBroadcast, 150); });
       d.appendChild(h); d.appendChild(f); panes.appendChild(d); frames.push(f);
     });
     document.getElementById("cmplabel").textContent = sel.join(" vs ");
