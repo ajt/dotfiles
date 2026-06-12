@@ -97,7 +97,8 @@
   function save() {
     try { localStorage.setItem("proto:" + location.pathname, JSON.stringify(store)); } catch (e) {}
   }
-  var theme = ""; // "" = leave variants to their own default
+  // start from the OS preference so the first toggle always flips for real
+  var theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 
   document.getElementById("title").textContent = R.slug + " — round " + R.round;
   document.title = R.slug + " — round " + R.round;
@@ -162,6 +163,7 @@
 
   // theme
   var tb = document.getElementById("themebtn");
+  tb.textContent = theme + " ◐";
   tb.addEventListener("click", function () {
     theme = theme === "light" ? "dark" : "light";
     tb.textContent = theme + " ◐";
