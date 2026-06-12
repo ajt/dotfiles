@@ -184,15 +184,34 @@ user in one line each.
 
 ## Step 6: Iterate
 
-When the user reacts ("variant 3, more whitespace, steal the nav from variant
-1"), start `round-{N+1}`:
+When the user reacts, start `round-{N+1}`. The winner's design direction is
+now LOCKED — rounds never reopen the aesthetic. First classify each piece of
+feedback, because it determines the mechanism:
 
-- Variant 1 of the new round = the chosen winner with the requested changes
-  applied faithfully. Its agent prompt includes the winner's full file content.
-- The remaining variants explore along the axis the user flagged (four
-  different takes on "more whitespace"), each still a parallel agent with the
-  winner's file content as context plus its own twist.
-- Same gallery machinery; nav links to all prior rounds. Repeat until happy.
+**Surgical feedback** — exact, deterministic, one correct outcome ("remove the
+# symbols", "20px not 36px", "swap those two sections"). Do NOT fan out:
+copy the winning file(s) into the new round and apply the edits yourself with
+direct Edit calls. Regenerating from scratch risks drifting details the user
+never mentioned. The user may also keep multiple finalists this way ("I like
+1 and 4, tweak each") — the round then contains exactly those refined files
+and the gallery shows only them.
+
+**Directional feedback** — ambiguous, many plausible readings ("more
+whitespace", "the CTA gets lost", "feels cramped"). The ambiguity is the
+value, so fan out the INTERPRETATIONS:
+
+- Variant 1 of the new round = the chosen winner with the feedback applied
+  faithfully (the conservative reading). Its agent prompt includes the
+  winner's full file content.
+- The remaining variants are distinct readings of the same feedback (four
+  different answers to what "more whitespace" could mean), each still a
+  parallel agent with the winner's file content as context plus its own twist.
+
+**Mixed feedback** splits naturally: apply the surgical parts to every
+variant identically; fan out only on the directional parts.
+
+Same gallery machinery either way; nav links to all prior rounds. Repeat
+until happy.
 
 ## Step 7: Promote
 
