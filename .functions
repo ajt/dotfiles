@@ -235,9 +235,25 @@ _cwork_launch() {
   fi
   local wid
   if [[ -n $TMUX ]]; then
-    wid=$(tmux new-window -d -P -F '#{window_id}' -n "$win" "$cmd")
+    # Pick the session for the new window. Normally the current one, but when
+    # launched from inside a valvonta popup (a vlv-* session, e.g. valvonta's
+    # `+` key) the popup session is hidden — a window created there would be
+    # unreachable — so target the most recently active non-popup client's
+    # session instead. CWORK_SESSION, if set, overrides both.
+    local -a target
+    local cur_sess
+    cur_sess=$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_name}' 2>/dev/null)
+    if [[ -n $CWORK_SESSION ]]; then
+      target=(-t "${CWORK_SESSION}:")
+    elif [[ $cur_sess == vlv-* ]]; then
+      local real
+      real=$(tmux list-clients -F $'#{client_activity}\t#{session_name}' 2>/dev/null \
+             | grep -v $'\tvlv-' | sort -rn | head -1 | cut -f2)
+      [[ -n $real ]] && target=(-t "${real}:")
+    fi
+    wid=$(tmux new-window -d -P -F '#{window_id}' "${target[@]}" -n "$win" "$cmd")
     _cwork_tag_window "$wid" "$num" "$title" "$branch"
-    print -- "opened tmux window: ${win}"
+    print -- "opened tmux window: ${win}${target:+ (session ${target[2]%:})}"
   else
     if tmux has-session -t "$sess" 2>/dev/null; then
       wid=$(tmux new-window -t "$sess" -P -F '#{window_id}' -n "$win" "$cmd")
