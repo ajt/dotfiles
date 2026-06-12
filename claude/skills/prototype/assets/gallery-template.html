@@ -29,10 +29,13 @@
   .pick.on { color:#e0af68; }
   .cmp { accent-color:#7aa2f7; }
   .card p { font-size:12px; color:#999; margin:0; padding:0 14px 10px; }
-  .frame { background:#0a0a0a; border-top:1px solid #333; display:flex; justify-content:center; overflow:auto; }
-  .frame iframe { width:100%; height:520px; border:0; background:#fff; flex:none; }
+  .frame { background:#0a0a0a; border-top:1px solid #333; display:flex; justify-content:center; overflow:auto; position:relative; }
+  .frame iframe { width:100%; height:520px; border:0; background:#fff; flex:none; transition:width .3s ease; }
   body[data-vp="390"] .frame iframe { width:390px; }
   body[data-vp="768"] .frame iframe { width:768px; }
+  .frame::before { position:absolute; top:6px; left:8px; font-size:10px; color:#666; background:#0a0a0acc; padding:1px 6px; border-radius:3px; z-index:1; pointer-events:none; }
+  body[data-vp="390"] .frame::before { content:"390px"; }
+  body[data-vp="768"] .frame::before { content:"768px"; }
   .notes { width:100%; background:#141414; color:#ccc; border:none; border-top:1px solid #333; font:inherit; font-size:12px; padding:8px 14px; resize:vertical; min-height:34px; }
   .notes::placeholder { color:#555; }
   .card a { display:block; padding:9px 14px; font-size:12px; color:#7aa2f7; text-decoration:none; border-top:1px solid #333; }
@@ -73,6 +76,11 @@
 <main id="grid"></main>
 <div id="genwrap">
   <textarea id="gennotes" placeholder="general notes for this round…"></textarea>
+  <p style="font-size:12px;color:#777;margin:8px 0 0">
+    how this works: ★ your favorites, jot notes on variants (and here), then hit
+    <b style="color:#aaa">copy feedback</b> and paste the result into your Claude
+    session — that drives the next round.
+  </p>
 </div>
 <div id="overlay">
   <div class="obar">
