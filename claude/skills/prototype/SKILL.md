@@ -178,7 +178,7 @@ Then write `{round-dir}/variants.js` yourself (main session, not an agent):
 const ROUND = {
   slug: "{slug}",
   round: {N},
-  prevRounds: [{existing earlier round numbers}],
+  rounds: [{ALL round numbers including this one, e.g. 1, 2, 3}],
   note: "{optional banner: RN approximation warning, token-constrained list, iteration context}",
   knobs: [ // OPTIONAL — react-web rounds where you defined knobs
     { key: "used", label: "API calls used", type: "number", default: 84211 }
@@ -186,13 +186,22 @@ const ROUND = {
   ],
   variants: [
     { n: 1, file: "variant-1-{direction-slug}.html",
-      direction: "{direction-name}", rationale: "{agent's one line}" }
+      direction: "{direction-name}", rationale: "{agent's one line}",
+      themed: true } // true = variant implements the dual-palette ?theme= convention
     // ...one per surviving variant
   ]
 };
 ```
 
 Omit `knobs` entirely when unused; omit `note` when there's nothing to say.
+Variants you generate follow the theme convention, so `themed: true`; mark
+`themed: false` only for imported/legacy files — the gallery disables the
+theme buttons (with an explanatory tooltip) when no variant in the round is
+themed, so the control never silently no-ops.
+
+When you create round N, UPDATE the `rounds` array in EVERY existing round's
+variants.js (all of them list all rounds; the gallery highlights the current
+one) — otherwise old rounds' navigation goes stale.
 The gallery gives the user: viewport toggles (390/768/full), a light/dark
 toggle (reloads variants with `?theme=`), a ★ pick + notes box per card with
 a "copy feedback" button (they paste the result back to you — treat it as

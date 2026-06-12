@@ -9,7 +9,10 @@
   body { margin:0; font-family:ui-monospace,'SF Mono',monospace; background:#111; color:#eee; }
   header { padding:12px 24px; display:flex; flex-wrap:wrap; gap:10px 24px; align-items:center; border-bottom:1px solid #333; position:sticky; top:0; background:#111; z-index:20; }
   header h1 { font-size:15px; margin:0; font-weight:600; flex:1 1 auto; }
-  nav a { color:#7aa2f7; margin-left:12px; text-decoration:none; font-size:12px; }
+  nav a, nav span { margin-left:12px; font-size:12px; }
+  nav a { color:#7aa2f7; text-decoration:none; }
+  nav span.cur { color:#e0af68; border-bottom:1px solid #e0af68; padding-bottom:1px; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
   .ctl { display:flex; gap:6px; align-items:center; font-size:12px; }
   .ctl span.lbl { color:#777; }
   button { font:inherit; font-size:12px; background:#1a1a1a; color:#ccc; border:1px solid #444; border-radius:4px; padding:4px 10px; cursor:pointer; }
@@ -63,7 +66,8 @@
     <button data-vp="390">390</button>
   </div>
   <div class="ctl"><span class="lbl">theme</span>
-    <button id="themebtn" data-theme="dark">dark ◐</button>
+    <button data-th="dark">dark</button>
+    <button data-th="light">light</button>
   </div>
   <div class="ctl">
     <button id="comparebtn" disabled>compare (pick 2)</button>
@@ -111,11 +115,18 @@
   document.getElementById("title").textContent = R.slug + " — round " + R.round;
   document.title = R.slug + " — round " + R.round;
   var nav = document.getElementById("nav");
-  (R.prevRounds || []).forEach(function (n) {
-    var a = document.createElement("a");
-    a.href = "../round-" + n + "/index.html";
-    a.textContent = "round " + n;
-    nav.appendChild(a);
+  var allRounds = R.rounds || (R.prevRounds || []).concat([R.round]);
+  allRounds.forEach(function (n) {
+    var el;
+    if (n === R.round) {
+      el = document.createElement("span");
+      el.className = "cur";
+    } else {
+      el = document.createElement("a");
+      el.href = "../round-" + n + "/index.html";
+    }
+    el.textContent = "round " + n;
+    nav.appendChild(el);
   });
   if (R.note) {
     var nb = document.getElementById("note");
@@ -169,16 +180,30 @@
     });
   });
 
-  // theme
-  var tb = document.getElementById("themebtn");
-  tb.textContent = theme + " ◐";
-  tb.addEventListener("click", function () {
-    theme = theme === "light" ? "dark" : "light";
-    tb.textContent = theme + " ◐";
-    document.querySelectorAll("main iframe").forEach(function (f, i) {
-      f.src = frameSrc(R.variants[i].file);
+  // theme — explicit dark/light buttons; disabled when no variant supports theming
+  var themeBtns = document.querySelectorAll("[data-th]");
+  var anyThemed = R.variants.some(function (v) { return v.themed; });
+  function paintTheme() {
+    themeBtns.forEach(function (b) { b.classList.toggle("on", b.dataset.th === theme); });
+  }
+  paintTheme();
+  if (!anyThemed) {
+    themeBtns.forEach(function (b) {
+      b.disabled = true;
+      b.title = "the variants in this round predate theming — newer rounds support dark/light";
     });
-  });
+  } else {
+    themeBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (theme === b.dataset.th) return;
+        theme = b.dataset.th;
+        paintTheme();
+        document.querySelectorAll("main iframe").forEach(function (f, i) {
+          f.src = frameSrc(R.variants[i].file);
+        });
+      });
+    });
+  }
 
   // knobs
   if (R.knobs && R.knobs.length) {
