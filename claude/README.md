@@ -8,6 +8,7 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 |---|---|---|
 | `statusline-command.sh` | **Symlinked** to `~/.claude/statusline-command.sh` | Pure stdin-driven renderer, no secrets, fine to live-sync across machines |
 | `settings.example.json` | **Copied once** to `~/.claude/settings.json` if the target doesn't exist; never overwrites | The real `settings.json` accumulates per-machine state (enabled plugins, marketplaces, security flags) — keeping it out of public VC |
+| `skills/prototype/` | **Symlinked** to `~/.claude/skills/prototype` | Pure-instruction skill (no scripts, no secrets), fine to live-sync across machines |
 
 ## What's deliberately *not* in here
 
@@ -15,7 +16,28 @@ User-scope [Claude Code](https://docs.claude.com/claude-code) config that's safe
 - `~/.claude.json` (MCP config, lives in `$HOME`) — often has private endpoints; manually managed.
 - `~/.claude/.credentials.json`, `sessions/`, `history.jsonl`, `cache/`, `plugins/`, `projects/` — runtime state, secrets, transcripts. Never publish.
 - Plugin `.env` files (live in each plugin's data dir) — API keys.
-- Custom skills under `~/.agents/skills/` — manage as their own private project if you ever build any worth keeping.
+- Custom skills under `~/.agents/skills/` — manage as their own private project if you ever build any worth keeping. (Skills worth sharing publicly live here under `skills/` instead — see `skills/prototype/`.)
+
+## skills/prototype
+
+Personal skill: parallel design-variant gallery. Given a UI brief, spawns 5+
+subagents (each on a divergent named design direction, each using the
+frontend-design skill), writes self-contained HTML variants to
+`.prototypes/<slug>/round-N/` in the target project, and opens a gallery for
+side-by-side comparison. The gallery is a shipped app
+(`skills/prototype/assets/gallery-template.html`; rounds write a `variants.js`
+data file) with viewport toggles (390/768/full), a light/dark switch (variants
+ship both palettes via `?theme=`), per-card pick★/notes with a copy-feedback
+button, an A/B compare overlay, and a props-knobs strip for React variants
+(postMessage). Generation reads real project data when referenced, and
+constrains part of the round to the project's design tokens when found.
+Iteration classifies feedback as surgical (direct edits), directional
+(interpretation fan-out), or remix (combine named variants); each round
+appends to `.prototypes/<slug>/DECISIONS.md` and archives screenshots to
+`round-N/shots/` when a browser tool is available. A final winner gets
+promoted to a real component, with the decision record offered alongside.
+Deployed to `~/.claude/skills/prototype` by `symlink-setup.sh`.
+Spec: `docs/superpowers/specs/2026-06-12-prototype-skill-design.md`.
 
 ## Before publishing edits to `settings.example.json`
 

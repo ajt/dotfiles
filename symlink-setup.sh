@@ -92,10 +92,11 @@ done
 # settings.json is COPIED from a public template only when missing, so each
 # machine's real settings (private marketplaces, security flags, etc.) stay
 # out of this public repo. Same private-overlay spirit as ~/.extra.
-mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude/skills"
 
 CLAUDE_SYMLINK_FILES=(
 statusline-command.sh
+skills/prototype
 )
 
 for f in "${CLAUDE_SYMLINK_FILES[@]}"; do

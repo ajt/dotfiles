@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>prototype gallery</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:ui-monospace,'SF Mono',monospace; background:#111; color:#eee; }
+  header { padding:12px 24px; display:flex; flex-wrap:wrap; gap:10px 24px; align-items:center; border-bottom:1px solid #333; position:sticky; top:0; background:#111; z-index:20; }
+  header h1 { font-size:15px; margin:0; font-weight:600; flex:1 1 auto; }
+  nav a, nav span { margin-left:12px; font-size:12px; }
+  nav a { color:#7aa2f7; text-decoration:none; }
+  nav span.cur { color:#e0af68; border-bottom:1px solid #e0af68; padding-bottom:1px; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .ctl { display:flex; gap:6px; align-items:center; font-size:12px; }
+  .ctl span.lbl { color:#777; }
+  button { font:inherit; font-size:12px; background:#1a1a1a; color:#ccc; border:1px solid #444; border-radius:4px; padding:4px 10px; cursor:pointer; }
+  button:hover { border-color:#888; color:#fff; }
+  button.on { background:#7aa2f7; border-color:#7aa2f7; color:#111; }
+  button.primary { background:#2a3a5a; border-color:#3a5a9a; }
+  .note { padding:8px 24px; font-size:12px; color:#e0af68; border-bottom:1px solid #333; }
+  #knobs { display:flex; flex-wrap:wrap; gap:8px 20px; padding:10px 24px; border-bottom:1px solid #333; background:#161616; font-size:12px; }
+  #knobs label { display:flex; gap:8px; align-items:center; color:#aaa; }
+  #knobs input[type=number], #knobs input[type=text] { font:inherit; background:#111; color:#eee; border:1px solid #444; border-radius:4px; padding:3px 8px; width:110px; }
+  main { display:grid; grid-template-columns:repeat(auto-fit,minmax(var(--cardmin,480px),1fr)); gap:24px; padding:24px; }
+  .card { border:1px solid #333; border-radius:8px; overflow:hidden; background:#1a1a1a; display:flex; flex-direction:column; }
+  .card.picked { border-color:#e0af68; }
+  .cardhead { display:flex; align-items:baseline; gap:10px; padding:12px 14px 4px; }
+  .card h2 { font-size:14px; margin:0; flex:1; }
+  .pick { background:none; border:none; font-size:16px; color:#555; padding:0 4px; }
+  .pick.on { color:#e0af68; }
+  .cmp { accent-color:#7aa2f7; }
+  .card p { font-size:12px; color:#999; margin:0; padding:0 14px 10px; }
+  .frame { background:#0a0a0a; border-top:1px solid #333; display:flex; justify-content:center; overflow:auto; position:relative; }
+  .frame iframe { width:100%; height:520px; border:0; background:#fff; flex:none; transition:width .3s ease; }
+  body[data-vp="390"] .frame iframe { width:390px; }
+  body[data-vp="768"] .frame iframe { width:768px; }
+  .frame::before { position:absolute; top:6px; left:8px; font-size:10px; color:#666; background:#0a0a0acc; padding:1px 6px; border-radius:3px; z-index:1; pointer-events:none; }
+  body[data-vp="390"] .frame::before { content:"390px"; }
+  body[data-vp="768"] .frame::before { content:"768px"; }
+  .notes { width:100%; background:#141414; color:#ccc; border:none; border-top:1px solid #333; font:inherit; font-size:12px; padding:8px 14px; resize:vertical; min-height:34px; }
+  .notes::placeholder { color:#555; }
+  .card a { display:block; padding:9px 14px; font-size:12px; color:#7aa2f7; text-decoration:none; border-top:1px solid #333; }
+  #genwrap { padding:0 24px 24px; }
+  #gennotes { width:100%; background:#141414; color:#ccc; border:1px solid #333; border-radius:6px; font:inherit; font-size:12px; padding:10px 14px; resize:vertical; min-height:44px; }
+  #toast { position:fixed; bottom:18px; right:18px; background:#2a3a5a; color:#fff; font-size:12px; padding:8px 14px; border-radius:6px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:60; }
+  #toast.show { opacity:1; }
+  #overlay { position:fixed; inset:0; background:#111; z-index:40; display:none; flex-direction:column; }
+  #overlay.show { display:flex; }
+  #overlay .obar { display:flex; gap:16px; align-items:center; padding:10px 24px; border-bottom:1px solid #333; font-size:12px; }
+  #overlay .obar .ttl { color:#e0af68; }
+  #overlay .panes { flex:1; display:flex; min-height:0; }
+  #overlay .panes > div { flex:1; display:flex; flex-direction:column; min-width:0; border-right:1px solid #333; }
+  #overlay .panes > div:last-child { border-right:none; }
+  #overlay .panes h3 { font-size:12px; margin:0; padding:8px 14px; color:#aaa; font-weight:400; }
+  #overlay .panes iframe { flex:1; width:100%; border:0; background:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <div class="ctl"><span class="lbl">viewport</span>
+    <button data-vp="full" class="on">full</button>
+    <button data-vp="768">768</button>
+    <button data-vp="390">390</button>
+  </div>
+  <div class="ctl"><span class="lbl">theme</span>
+    <button data-th="dark">dark</button>
+    <button data-th="light">light</button>
+  </div>
+  <div class="ctl">
+    <button id="comparebtn" disabled>compare (pick 2)</button>
+    <button id="copybtn" class="primary">copy feedback</button>
+  </div>
+  <nav id="nav"></nav>
+</header>
+<div class="note" id="note" hidden></div>
+<div id="knobs" hidden></div>
+<main id="grid"></main>
+<div id="genwrap">
+  <textarea id="gennotes" placeholder="general notes for this round…"></textarea>
+  <p style="font-size:12px;color:#777;margin:8px 0 0">
+    how this works: ★ your favorites, jot notes on variants (and here), then hit
+    <b style="color:#aaa">copy feedback</b> and paste the result into your Claude
+    session — that drives the next round.
+  </p>
+</div>
+<div id="overlay">
+  <div class="obar">
+    <span class="ttl">compare</span>
+    <span id="cmplabel"></span>
+    <button id="closecmp">close (esc)</button>
+    <span style="color:#555" id="syncinfo"></span>
+  </div>
+  <div class="panes" id="panes"></div>
+</div>
+<div id="toast"></div>
+<script src="variants.js"></script>
+<script>
+(function () {
+  var R = ROUND; // top-level const from variants.js — shared lexical scope, not a window property
+  var store;
+  try { store = JSON.parse(localStorage.getItem("proto:" + location.pathname) || "{}"); }
+  catch (e) { store = {}; }
+  store.picks = store.picks || {};
+  store.notes = store.notes || {};
+  store.general = store.general || "";
+  function save() {
+    try { localStorage.setItem("proto:" + location.pathname, JSON.stringify(store)); } catch (e) {}
+  }
+  // start from the OS preference so the first toggle always flips for real
+  var theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+
+  document.getElementById("title").textContent = R.slug + " — round " + R.round;
+  document.title = R.slug + " — round " + R.round;
+  var nav = document.getElementById("nav");
+  var allRounds = R.rounds || (R.prevRounds || []).concat([R.round]);
+  allRounds.forEach(function (n) {
+    var el;
+    if (n === R.round) {
+      el = document.createElement("span");
+      el.className = "cur";
+    } else {
+      el = document.createElement("a");
+      el.href = "../round-" + n + "/index.html";
+    }
+    el.textContent = "round " + n;
+    nav.appendChild(el);
+  });
+  if (R.note) {
+    var nb = document.getElementById("note");
+    nb.hidden = false; nb.textContent = R.note;
+  }
+
+  function frameSrc(file) { return theme ? file + "?theme=" + theme : file; }
+
+  var grid = document.getElementById("grid");
+  R.variants.forEach(function (v) {
+    var card = document.createElement("div");
+    card.className = "card" + (store.picks[v.n] ? " picked" : "");
+    card.innerHTML =
+      '<div class="cardhead">' +
+        '<button class="pick' + (store.picks[v.n] ? " on" : "") + '" title="pick">★</button>' +
+        "<h2></h2>" +
+        '<label style="font-size:11px;color:#777">cmp <input type="checkbox" class="cmp"></label>' +
+      "</div>" +
+      "<p></p>" +
+      '<div class="frame"><iframe loading="lazy"></iframe></div>' +
+      '<textarea class="notes" placeholder="notes on this variant…"></textarea>' +
+      '<a target="_blank">open full screen ↗</a>';
+    card.querySelector("h2").textContent = v.n + " · " + v.direction;
+    card.querySelector("p").textContent = v.rationale;
+    card.querySelector("iframe").src = frameSrc(v.file);
+    var link = card.querySelector("a"); link.href = frameSrc(v.file);
+    var noteEl = card.querySelector(".notes");
+    noteEl.value = store.notes[v.n] || "";
+    noteEl.addEventListener("input", function () { store.notes[v.n] = noteEl.value; save(); });
+    var pickBtn = card.querySelector(".pick");
+    pickBtn.addEventListener("click", function () {
+      store.picks[v.n] = !store.picks[v.n]; save();
+      pickBtn.classList.toggle("on", !!store.picks[v.n]);
+      card.classList.toggle("picked", !!store.picks[v.n]);
+    });
+    card.querySelector(".cmp").addEventListener("change", updateCompareBtn);
+    card.dataset.n = v.n;
+    grid.appendChild(card);
+  });
+
+  var gen = document.getElementById("gennotes");
+  gen.value = store.general;
+  gen.addEventListener("input", function () { store.general = gen.value; save(); });
+
+  // viewport
+  document.querySelectorAll("[data-vp]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll("[data-vp]").forEach(function (x) { x.classList.remove("on"); });
+      b.classList.add("on");
+      if (b.dataset.vp === "full") delete document.body.dataset.vp;
+      else document.body.dataset.vp = b.dataset.vp;
+    });
+  });
+
+  // theme — explicit dark/light buttons; disabled when no variant supports theming
+  var themeBtns = document.querySelectorAll("[data-th]");
+  var anyThemed = R.variants.some(function (v) { return v.themed; });
+  function paintTheme() {
+    themeBtns.forEach(function (b) { b.classList.toggle("on", b.dataset.th === theme); });
+  }
+  paintTheme();
+  if (!anyThemed) {
+    themeBtns.forEach(function (b) {
+      b.disabled = true;
+      b.title = "the variants in this round predate theming — newer rounds support dark/light";
+    });
+  } else {
+    themeBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (theme === b.dataset.th) return;
+        theme = b.dataset.th;
+        paintTheme();
+        document.querySelectorAll("main .card").forEach(function (c, i) {
+          c.querySelector("iframe").src = frameSrc(R.variants[i].file);
+          c.querySelector("a").href = frameSrc(R.variants[i].file);
+        });
+      });
+    });
+  }
+
+  // knobs
+  var knobBroadcast = null; // set when the round declares knobs; reused by compare overlay
+  if (R.knobs && R.knobs.length) {
+    var kn = document.getElementById("knobs");
+    kn.hidden = false;
+    var props = {};
+    R.knobs.forEach(function (k) { props[k.key] = k.default; });
+    var broadcast = knobBroadcast = function () {
+      document.querySelectorAll("iframe").forEach(function (f) {
+        try { f.contentWindow.postMessage({ type: "proto:props", props: props }, "*"); } catch (e) {}
+      });
+    };
+    R.knobs.forEach(function (k) {
+      var lab = document.createElement("label");
+      lab.textContent = k.label + " ";
+      var inp;
+      if (k.type === "toggle") {
+        inp = document.createElement("input"); inp.type = "checkbox"; inp.checked = !!k.default;
+        inp.addEventListener("change", function () { props[k.key] = inp.checked; broadcast(); });
+      } else {
+        inp = document.createElement("input");
+        inp.type = k.type === "number" ? "number" : "text";
+        inp.value = k.default;
+        inp.addEventListener("input", function () {
+          props[k.key] = k.type === "number" ? Number(inp.value) : inp.value;
+          broadcast();
+        });
+      }
+      lab.appendChild(inp); kn.appendChild(lab);
+    });
+    // re-broadcast when an iframe (re)loads
+    document.querySelectorAll("main iframe").forEach(function (f) {
+      f.addEventListener("load", function () { setTimeout(broadcast, 150); });
+    });
+  }
+
+  // copy feedback
+  document.getElementById("copybtn").addEventListener("click", function () {
+    var lines = ["round " + R.round + " feedback (" + R.slug + "):"];
+    var picked = R.variants.filter(function (v) { return store.picks[v.n]; });
+    lines.push("picked: " + (picked.length
+      ? picked.map(function (v) { return v.n + " (" + v.direction + ")"; }).join(", ")
+      : "none"));
+    R.variants.forEach(function (v) {
+      if ((store.notes[v.n] || "").trim())
+        lines.push(v.n + " · " + v.direction + ": " + store.notes[v.n].trim());
+    });
+    if (store.general.trim()) lines.push("general: " + store.general.trim());
+    var text = lines.join("\n");
+    function done() { toast("feedback copied — paste it into the Claude session"); }
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(text).then(done, function () { prompt("copy this:", text); });
+    else prompt("copy this:", text);
+  });
+
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+
+  // compare
+  function selectedCmp() {
+    return Array.prototype.slice.call(document.querySelectorAll(".cmp:checked"))
+      .map(function (c) { return Number(c.closest(".card").dataset.n); });
+  }
+  function updateCompareBtn() {
+    var sel = selectedCmp();
+    var b = document.getElementById("comparebtn");
+    b.disabled = sel.length !== 2;
+    b.textContent = sel.length === 2 ? "compare " + sel.join(" vs ") : "compare (pick 2)";
+  }
+  var overlay = document.getElementById("overlay");
+  document.getElementById("comparebtn").addEventListener("click", function () {
+    var sel = selectedCmp(); if (sel.length !== 2) return;
+    var panes = document.getElementById("panes"); panes.innerHTML = "";
+    var frames = [];
+    sel.forEach(function (n) {
+      var v = R.variants.filter(function (x) { return x.n === n; })[0];
+      var d = document.createElement("div");
+      var h = document.createElement("h3"); h.textContent = v.n + " · " + v.direction;
+      var f = document.createElement("iframe"); f.src = frameSrc(v.file);
+      if (knobBroadcast) f.addEventListener("load", function () { setTimeout(knobBroadcast, 150); });
+      d.appendChild(h); d.appendChild(f); panes.appendChild(d); frames.push(f);
+    });
+    document.getElementById("cmplabel").textContent = sel.join(" vs ");
+    // best-effort scroll sync (same-origin only; silently unavailable on file://)
+    var syncing = false, syncOk = false;
+    function hook(a, b) {
+      try {
+        a.contentWindow.addEventListener("scroll", function () {
+          if (syncing) return; syncing = true;
+          try { b.contentWindow.scrollTo(0, a.contentWindow.scrollY); } catch (e) {}
+          syncing = false;
+        });
+        syncOk = true;
+      } catch (e) {}
+    }
+    frames[0].addEventListener("load", function () { hook(frames[0], frames[1]); report(); });
+    frames[1].addEventListener("load", function () { hook(frames[1], frames[0]); report(); });
+    function report() {
+      document.getElementById("syncinfo").textContent =
+        syncOk ? "scroll synced" : "scroll sync unavailable (file://)";
+    }
+    overlay.classList.add("show");
+  });
+  function closeCmp() { overlay.classList.remove("show"); document.getElementById("panes").innerHTML = ""; }
+  document.getElementById("closecmp").addEventListener("click", closeCmp);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeCmp(); });
+})();
+</script>
+</body>
+</html>
