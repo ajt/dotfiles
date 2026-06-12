@@ -215,6 +215,12 @@ cd {project-root} && python3 -m http.server {port} &   # then browse
 # kill the server when done
 ```
 
+Containerized browser tools save screenshots INSIDE their container, not on
+the host — find the container (`docker ps`), locate the files (often
+`/home/node/`), and extract with
+`docker cp <container>:/home/node/<shot>.png {round-dir}/shots/variant-<n>.png`.
+Verify by content (`file *.png`), not by exit code.
+
 If no browser tool exists, skip and tell the user in one line. Never block
 the round on screenshots.
 
