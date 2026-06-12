@@ -103,6 +103,51 @@ implementation work and exits the skill (normal workflows — TDD, review —
 apply from there). In static mode, promotion means handing over the final
 HTML/CSS or adapting it into the project's templating as requested.
 
+## Enhancements (2026-06-12, approved after live demo)
+
+Ten additions, grouped by stage. The gallery becomes a shared asset
+(`claude/skills/prototype/assets/gallery-template.html`); each round writes a
+`variants.js` data file (`const ROUND = {slug, round, prevRounds, note,
+knobs?, variants:[{n, file, direction, rationale}]}`) and copies the template
+as its `index.html`.
+
+**Gallery (template features):**
+1. *Viewport toggles* — header buttons (390px / 768px / full) resizing all
+   variant iframes at once.
+2. *Feedback capture* — per-card pick toggle + notes field, persisted to
+   localStorage, plus a "copy feedback" button that assembles a structured
+   summary for pasting back into the session.
+3. *A/B compare* — select exactly two cards → 50/50 split overlay; scroll
+   sync best-effort (same-origin only; degrades gracefully under file://).
+
+**Generation (SKILL.md conventions):**
+4. *Light/dark first-class* — every variant ships both palettes via
+   `:root[data-theme]` custom props; a boot script reads `?theme=` (falling
+   back to `prefers-color-scheme`); the gallery's sun/moon toggle reloads
+   iframes with the param. Variants lacking support ignore the param.
+5. *Design-token awareness (react-web)* — detect project tokens
+   (tailwind config, `:root` custom props, theme files); when found, the
+   last two of five variants are token-constrained ("in our design system"),
+   the rest free.
+6. *Real-content injection* — Step 0 accepts data sources (file paths, JSON,
+   copy decks); their real values are embedded in the brief and binding on
+   agents.
+7. *Props/state knobs (react-web)* — rounds may declare `knobs` in
+   variants.js; the gallery renders a shared controls strip and broadcasts
+   `{type:'proto:props', props}` via postMessage; variants implement a
+   message listener updating component state.
+
+**Iteration & promotion (SKILL.md):**
+8. *Remix feedback class* — third Step 6 mechanism: one agent receives two
+   (or more) variant files plus a combination instruction.
+9. *Screenshot archiving* — after each gallery build, if a browser tool is
+   available, capture per-variant PNGs into `round-N/shots/` (serving the
+   round dir over localhost when the browser cannot read file://). Skipped
+   silently when no browser tool exists.
+10. *Design decision record* — maintain `.prototypes/<slug>/DECISIONS.md`
+    (directions offered, winner, feedback trail per round); at promotion,
+    offer to copy it into the project's docs.
+
 ## Non-Goals
 
 - No persistent "taste memory" across features (gstack-style). Rounds carry
