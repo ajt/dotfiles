@@ -24,6 +24,11 @@ From the user's request and project context, write a short problem statement:
 If you cannot name the real content (e.g. "a dashboard" — of what?), ask ONE
 clarifying question before proceeding.
 
+**Real content:** if the user references a data source (a file path, JSON, an
+API response, a copy deck), READ it and embed the actual values in the brief.
+Mark them binding in every agent prompt: "the following values are real
+project data — use them exactly, do not invent data."
+
 ## Step 1: Detect mode
 
 Read `package.json` in the project root (if present):
@@ -36,6 +41,17 @@ Read `package.json` in the project root (if present):
 
 Check `react-native` BEFORE `react-dom` (RN projects often have both). CDN
 modes need network; if offline, fall back to `static` and tell the user.
+
+## Step 1.5: Detect design tokens (react-web only)
+
+Look for the project's design tokens: `tailwind.config.{js,ts,cjs,mjs}`,
+`:root { --* }` custom properties in the project's stylesheets, `theme.*` /
+`tokens.*` files. If found, extract the brand palette and type choices, and
+split the round: the LAST TWO variants get token-constrained prompts ("you
+must use these colors/fonts — show what this looks like inside our design
+system", tokens pasted in); the rest explore freely. Put which variants are
+constrained in the gallery `note`. If nothing is found, all variants are
+free — don't mention it.
 
 ## Step 2: Set up the round directory
 
@@ -90,6 +106,21 @@ REQUIREMENTS:
 5. Line 1 of the file must be exactly:
    <!-- direction: {direction-name} | rationale: <one line, your words> -->
 6. Make interactive states real where cheap (hover, focus, active tab).
+7. THEME: ship BOTH palettes. Define colors as custom properties under
+   `:root[data-theme="dark"]` and `:root[data-theme="light"]` (your direction
+   decides what its light reading is — printed-paper, inverted, etc. — but it
+   must be intentional, not auto-inverted). First script in <head>:
+   <script>
+   document.documentElement.dataset.theme =
+     new URLSearchParams(location.search).get("theme") ||
+     (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+   </script>
+{8. KNOBS — include ONLY when the round declares knobs (react-web): the
+   component's key inputs must be driven by state initialized to {defaults},
+   updated by:
+   window.addEventListener("message", (e) => {
+     if (e.data && e.data.type === "proto:props") setProps(e.data.props);
+   });}
 
 Return exactly two lines: the file path, then the rationale line.
 ```
@@ -134,53 +165,58 @@ user which direction is missing. Never block a round on one failed variant.
 
 ## Step 5: Build and open the gallery
 
-Write `{round-dir}/index.html` yourself (main session, not an agent) from this
-template — one `.card` per variant, real direction names and rationales, and
-one nav link per existing prior round:
+The gallery is a shipped app: copy it from this skill's directory (the "Base
+directory for this skill" announced when the skill loads):
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>{slug} — round {N}</title>
-<style>
-  :root { color-scheme: dark; }
-  body { margin:0; font-family:ui-monospace,'SF Mono',monospace; background:#111; color:#eee; }
-  header { padding:16px 24px; display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid #333; }
-  header h1 { font-size:16px; margin:0; font-weight:600; }
-  nav a { color:#7aa2f7; margin-left:12px; text-decoration:none; font-size:13px; }
-  main { display:grid; grid-template-columns:repeat(auto-fit,minmax(480px,1fr)); gap:24px; padding:24px; }
-  .card { border:1px solid #333; border-radius:8px; overflow:hidden; background:#1a1a1a; display:flex; flex-direction:column; }
-  .card h2 { font-size:14px; margin:0; padding:12px 14px 4px; }
-  .card p { font-size:12px; color:#999; margin:0; padding:0 14px 10px; }
-  .card iframe { width:100%; height:520px; border:0; border-top:1px solid #333; background:#fff; }
-  .card a { display:block; padding:9px 14px; font-size:12px; color:#7aa2f7; text-decoration:none; border-top:1px solid #333; }
-  .note { padding:8px 24px; font-size:12px; color:#e0af68; border-bottom:1px solid #333; }
-</style>
-</head>
-<body>
-<header>
-  <h1>{slug} — round {N}</h1>
-  <nav><a href="../round-1/index.html">round 1</a></nav>
-</header>
-<!-- react-native mode only: -->
-<div class="note">react-native-web approximation — verify on device before trusting pixels.</div>
-<main>
-  <div class="card">
-    <h2>1 · {direction-name}</h2>
-    <p>{rationale}</p>
-    <iframe src="variant-1-{direction-slug}.html" loading="lazy"></iframe>
-    <a href="variant-1-{direction-slug}.html" target="_blank">open full screen ↗</a>
-  </div>
-  <!-- ...one card per variant -->
-</main>
-</body>
-</html>
+```bash
+cp "{skill-base-dir}/assets/gallery-template.html" "{round-dir}/index.html"
 ```
 
+Then write `{round-dir}/variants.js` yourself (main session, not an agent):
+
+```js
+const ROUND = {
+  slug: "{slug}",
+  round: {N},
+  prevRounds: [{existing earlier round numbers}],
+  note: "{optional banner: RN approximation warning, token-constrained list, iteration context}",
+  knobs: [ // OPTIONAL — react-web rounds where you defined knobs
+    { key: "used", label: "API calls used", type: "number", default: 84211 }
+    // types: "number" | "text" | "toggle"
+  ],
+  variants: [
+    { n: 1, file: "variant-1-{direction-slug}.html",
+      direction: "{direction-name}", rationale: "{agent's one line}" }
+    // ...one per surviving variant
+  ]
+};
+```
+
+Omit `knobs` entirely when unused; omit `note` when there's nothing to say.
+The gallery gives the user: viewport toggles (390/768/full), a light/dark
+toggle (reloads variants with `?theme=`), a ★ pick + notes box per card with
+a "copy feedback" button (they paste the result back to you — treat it as
+Step 6 input), and an A/B compare overlay.
+
 Then: `open "{round-dir}/index.html"` and summarize the directions for the
-user in one line each.
+user in one line each. Mention that picks/notes in the gallery can be copied
+back here with the "copy feedback" button.
+
+## Step 5.5: Archive screenshots (best effort)
+
+If a browser tool is available (e.g. Playwright MCP), capture each variant to
+`{round-dir}/shots/variant-{n}.png` so rounds stay reviewable without
+rendering and can be embedded in PRs/specs. Containerized browsers cannot
+read host `file://` paths — serve the project dir first:
+
+```bash
+cd {project-root} && python3 -m http.server {port} &   # then browse
+# container browsers reach the host at http://host.docker.internal:{port}
+# kill the server when done
+```
+
+If no browser tool exists, skip and tell the user in one line. Never block
+the round on screenshots.
 
 ## Step 6: Iterate
 
@@ -207,11 +243,33 @@ value, so fan out the INTERPRETATIONS:
   different answers to what "more whitespace" could mean), each still a
   parallel agent with the winner's file content as context plus its own twist.
 
+**Remix feedback** — combine named elements of multiple variants ("take 1's
+typography with 4's layout"). One agent per remix, given ALL named variants'
+full file contents and an explicit combination instruction (which element
+comes from where, and which variant's character wins when they conflict).
+A remix is one variant in the round; it composes freely with surgical and
+directional variants in the same round.
+
 **Mixed feedback** splits naturally: apply the surgical parts to every
-variant identically; fan out only on the directional parts.
+variant identically; fan out only on the directional parts; spawn a remix
+agent for each combination request.
 
 Same gallery machinery either way; nav links to all prior rounds. Repeat
 until happy.
+
+## Step 6.5: Record decisions
+
+Maintain `.prototypes/{slug}/DECISIONS.md` — append after every round:
+
+```markdown
+## Round {N} — {date}
+**Offered:** {direction}: {rationale} (one line each)
+**User picked:** {variants, or "none — feedback only"}
+**Feedback:** {the user's reaction, verbatim or tightly paraphrased}
+```
+
+This file is the design provenance: why the winner won and what was
+considered and rejected.
 
 ## Step 7: Promote
 
@@ -224,5 +282,7 @@ When the user declares a final winner:
 - **Static mode:** hand over the final HTML/CSS or adapt it into the project's
   templating as the user requests.
 
-Offer to delete `.prototypes/{slug}/` after promotion; don't delete it
-unprompted.
+At promotion, offer to copy `DECISIONS.md` into the project's docs (e.g.
+`docs/design/{slug}-decisions.md`) alongside the component — the exploration
+trail is the design justification. Offer to delete `.prototypes/{slug}/`
+after promotion; don't delete it unprompted.
