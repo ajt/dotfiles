@@ -39,8 +39,11 @@ animate() {
   while :; do
     own=$(tmux show-options -gqv @claude_spinner_pid 2>/dev/null)
     [ "$own" = "$$" ] || exit 0
-    case "$(tmux list-windows -a -F '#{@claude_state}' 2>/dev/null)" in
-      *working*|*subagent*|*compacting*) ;;
+    # also stay alive while a finished turn carries the background overlay
+    # (@claude_bg=1): the blue overlay renders the same @claude_spinner, so it
+    # must keep cycling even when no foreground turn is active.
+    case "$(tmux list-windows -a -F '#{@claude_state} bg=#{@claude_bg}' 2>/dev/null)" in
+      *working*|*subagent*|*compacting*|*bg=1*) ;;
       *) tmux set-option -gu @claude_spinner_pid 2>/dev/null; exit 0 ;;
     esac
     # braille frames: the dot grid spans the full cell, so the spinner sits
@@ -82,23 +85,48 @@ _is_shell() {
     *) return 1 ;;
   esac
 }
+# _bg_descendant <pane_pid> — true iff a live process whose full argv carries
+# the Bash-tool signature `shell-snapshots/snapshot` is a descendant of pane_pid.
+# A background bash worker (run_in_background) survives as a child of the pane's
+# process tree after the turn ends; walking each signature-bearing candidate's
+# ppid chain up to pane_pid is the descendant test. $bgcands / $ppidmap are built
+# once per gc tick from the richer ps capture below (newline-separated, one
+# "pid ppid" pair per line) so the walk is a few cheap lookups, not a re-scan.
+_bg_descendant() {
+  local panepid="$1" cand pid hops
+  [ -n "$panepid" ] || return 1
+  for cand in $bgcands; do                      # pids whose argv has the signature
+    pid="$cand"; hops=0
+    while [ -n "$pid" ] && [ "$pid" != 0 ] && [ "$hops" -lt 64 ]; do
+      [ "$pid" = "$panepid" ] && return 0       # pane_pid is an ancestor -> descendant
+      pid=$(printf '%s\n' "$ppidmap" | awk -v p="$pid" '$1 == p { print $2; exit }')
+      hops=$((hops + 1))
+    done
+  done
+  return 1
+}
 gc() {
-  local live procs w p cmd panepid kid alive
+  local live procs ppidmap bgcands w p cmd panepid kid alive
   live=$(tmux list-panes -a -F '#{pane_id} #{pane_pid} #{pane_current_command}' 2>/dev/null)
-  procs=$(ps -axo ppid=,comm= 2>/dev/null)
+  # full argv (command), not just comm, so the snapshot signature is visible.
+  procs=$(ps -axo pid=,ppid=,command= 2>/dev/null)
+  # pid->ppid map (first two cols) for the ancestor walk, and the pids whose
+  # argv carries the background-worker signature (descendant candidates).
+  ppidmap=$(printf '%s\n' "$procs" | awk '{ print $1, $2 }')
+  bgcands=$(printf '%s\n' "$procs" | awk '/shell-snapshots\/snapshot/ { print $1 }')
   tmux list-windows -a -F '#{window_id} #{@claude_pane}' 2>/dev/null |
   while read -r w p; do
     [ -n "$p" ] || continue
     set -- $(printf '%s\n' "$live" | awk -v p="$p" '$1 == p { print $2, $3; exit }')
     panepid=${1:-}; cmd=${2:-}
     if [ -n "$cmd" ]; then
-      _is_shell "$cmd" || continue              # claude (or something) in the foreground
+      _is_shell "$cmd" || { _bg_check "$w" "$panepid"; continue; }  # claude (or something) in the foreground
       alive=''
-      for kid in $(printf '%s\n' "$procs" | awk -v p="$panepid" '$1 == p { print $2 }'); do
+      for kid in $(printf '%s\n' "$procs" | awk -v p="$panepid" '$2 == p { print $3 }'); do
         kid=${kid##*/}
         _is_shell "$kid" || { alive=1; break; } # wrapper shell still parenting a workload
       done
-      [ -n "$alive" ] && continue
+      [ -n "$alive" ] && { _bg_check "$w" "$panepid"; continue; }
     fi
     tmux set-option -uw -t "$w" @claude_state 2>/dev/null
     tmux set-option -uw -t "$w" @claude_subagents 2>/dev/null
@@ -106,7 +134,27 @@ gc() {
     tmux set-option -uw -t "$w" @claude_glyph 2>/dev/null
     tmux set-option -uw -t "$w" @claude_color 2>/dev/null
     tmux set-option -uw -t "$w" @claude_pane 2>/dev/null
+    tmux set-option -uw -t "$w" @claude_bg 2>/dev/null   # dead claude: drop any stale overlay
   done
+}
+# _bg_check <window> <pane_pid> — overlay derivation for a window kept alive by
+# gc. Only a finished turn (done/idle/waiting) with a live background worker as a
+# descendant of pane_pid lights @claude_bg; active turns (working/subagent/
+# compacting) already animate, and error must stay red — both leave it unset.
+# Re-derived every tick, so it self-clears when the worker exits or state changes.
+_bg_check() {
+  local w="$1" panepid="$2" st
+  st=$(tmux show-options -wqv -t "$w" @claude_state 2>/dev/null)
+  case "$st" in
+    done|idle|waiting)
+      if _bg_descendant "$panepid"; then
+        tmux set-option -w -t "$w" @claude_bg 1 2>/dev/null
+        ensure_animator
+        return 0
+      fi
+      ;;
+  esac
+  tmux set-option -uw -t "$w" @claude_bg 2>/dev/null
 }
 if [ "$ev" = gc ]; then gc; exit 0; fi
 
@@ -164,6 +212,9 @@ set_state() {
   tmux set-option -w -t "$pane" @claude_glyph "$(_glyph_for "$1")" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_color "$(_color_for "$1")" 2>/dev/null
   tmux set-option -w -t "$pane" @claude_pane "$pane" 2>/dev/null
+  # a real hook event always drops the background overlay; gc re-derives it on
+  # the next tick if a worker is still running after a turn ends.
+  tmux set-option -uw -t "$pane" @claude_bg 2>/dev/null
   case "$1" in working|subagent|compacting) ensure_animator ;; esac
 }
 set_count() { tmux set-option -w -t "$pane" @claude_subagents "$1" 2>/dev/null; }
@@ -174,6 +225,7 @@ clear_all() {
   tmux set-option -uw -t "$pane" @claude_glyph 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_color 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_pane 2>/dev/null
+  tmux set-option -uw -t "$pane" @claude_bg 2>/dev/null
 }
 
 # current subagent depth, sanitised to a non-negative integer
