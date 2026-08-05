@@ -88,6 +88,36 @@ for dir in "${CONFIG_DIRS[@]}"; do
   echo "  LINK  $target → $source"
 done
 
+# ─── macOS Services / Finder Quick Actions (symlink into ~/Library/Services) ─
+mkdir -p "$HOME/Library/Services"
+
+for source in "$DOTFILES_DIR"/services/*.workflow; do
+  [ -e "$source" ] || continue
+  item="$(basename "$source")"
+  target="$HOME/Library/Services/$item"
+
+  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+    echo "  OK    services/$item"
+    continue
+  fi
+
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
+    echo
+    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+      echo "  SKIP  services/$item"
+      continue
+    fi
+    rm -rf "$target"
+  fi
+
+  ln -s "$source" "$target"
+  echo "  LINK  $target → $source"
+done
+
+# Nudge the Services registry so new Quick Actions appear without a re-login.
+/System/Library/CoreServices/pbs -flush 2>/dev/null || true
+
 # Statusline is a pure renderer — safe to share publicly, live-synced.
 # settings.json is COPIED from a public template only when missing, so each
 # machine's real settings (private marketplaces, security flags, etc.) stay

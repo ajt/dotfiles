@@ -10,6 +10,7 @@ My macOS dotfiles. Originally forked from [paulirish/dotfiles](https://github.co
 - **git** config (with [delta](https://github.com/dandavison/delta) for diffs)
 - **Homebrew** formulae and casks
 - **macOS** defaults (curated, not the 500-line kitchen sink)
+- **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path
 - Shell **aliases**, **exports**, and **functions**
 
 ## New machine setup
