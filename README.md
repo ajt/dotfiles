@@ -10,7 +10,8 @@ My macOS dotfiles. Originally forked from [paulirish/dotfiles](https://github.co
 - **git** config (with [delta](https://github.com/dandavison/delta) for diffs)
 - **Homebrew** formulae and casks
 - **macOS** defaults (curated, not the 500-line kitchen sink)
-- **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path
+- **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path, Open in Reader
+- **Agent reader view** — `prefix R` in tmux opens Claude Code's or Codex's last reply as a clean HTML page (`bin/reader-*`)
 - Shell **aliases**, **exports**, and **functions**
 
 ## New machine setup
@@ -37,6 +38,40 @@ sh .macos
 
 # 6. Restart terminal
 ```
+
+## Updating an existing machine
+
+One command:
+
+```bash
+dotfiles update            # pull, then run only the steps the pull needs
+dotfiles update --dry-run  # show what it would run
+dotfiles update --all      # force every step (a machine that missed many pulls)
+dotfiles update --since main   # already pulled by hand: act on changes since main
+```
+
+`dotfiles update` (`bin/dotfiles-update`) fast-forwards the repo, syncs
+submodules, diffs the old and new commit, and runs the matching steps below.
+`dotfiles cd` jumps into the repo. Most of the repo is symlinked into
+`$HOME`, so for many pulls there is nothing to run at all.
+
+What each kind of change needs (this is what the command decides for you):
+
+| Changed in the pull | What to do |
+|---|---|
+| `.zshrc`, `.aliases`, `.exports`, `.functions`, `.vimrc`, `.gitconfig` | nothing — open a new shell |
+| `.tmux.conf` | `prefix r` (reload), or restart the tmux server |
+| a script in `bin/` | nothing — `~/bin` is a link to the directory |
+| a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
+| `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
+| `claude/settings.example.json` | `./symlink-setup.sh` tells you which hooks your `~/.claude/settings.json` lacks; copy those entries by hand (the file is per-machine and never overwritten) |
+| `brew.sh` / `brew-cask.sh` | re-run the script |
+| `.macos` | `sh .macos` |
+
+`symlink-setup.sh` is idempotent: existing links print `OK`, a file that is
+not the expected link asks before being replaced, and it never edits
+`~/.claude/settings.json`, `~/.codex/config.toml`, `~/.extra` or anything
+else that is per-machine.
 
 ## Zsh plugins
 

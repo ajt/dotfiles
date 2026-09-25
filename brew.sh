@@ -29,6 +29,7 @@ PACKAGES=(
   gdu                         # fast disk usage (Go)
   tree
   jq                          # JSON processor
+  pandoc                      # Markdown → HTML (bin/reader-render)
 
   # ─── Git ───────────────────────────────────────────────────────────
   git

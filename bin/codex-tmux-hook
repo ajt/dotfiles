@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# codex-tmux-hook — Codex Stop hook: record the session transcript on the tmux
+# window so `prefix R` can open the last reply as a reader page.
+#
+# Wired by codex/hooks.json, which symlink-setup.sh links to ~/.codex/hooks.json:
+#   {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"~/bin/codex-tmux-hook","timeout":5}]}]}}
+# Codex sends JSON on stdin with session_id, transcript_path (the
+# ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl file) and
+# last_assistant_message, and expects JSON on stdout — `{}` means "no changes".
+# Leave `notify` in config.toml alone: it is a different, single-slot mechanism.
+#
+# Falls back to CODEX_THREAD_ID / CODEX_SESSION_ID (set in Codex-launched
+# processes) to find the rollout file when transcript_path is null.
+set -u
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+done_() { printf '{}\n'; exit 0; }
+
+pane=${TMUX_PANE:-}
+[ -n "${TMUX:-}" ] && [ -n "$pane" ] || done_
+
+payload=''
+[ -t 0 ] || payload=$(cat 2>/dev/null)
+
+tp=''
+if [ -n "$payload" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
+  else
+    tp=$(printf '%s' "$payload" | sed -n 's/.*"transcript_path":"\([^"]*\)".*/\1/p' | head -1)
+  fi
+fi
+
+if [ -z "$tp" ]; then
+  id=${CODEX_THREAD_ID:-${CODEX_SESSION_ID:-}}
+  if [ -n "$id" ]; then
+    tp=$(find "${CODEX_HOME:-$HOME/.codex}/sessions" -type f -name "rollout-*-${id}.jsonl" 2>/dev/null | head -1)
+  fi
+fi
+
+[ -n "$tp" ] && tmux set-option -w -t "$pane" @agent_transcript "$tp" 2>/dev/null
+done_

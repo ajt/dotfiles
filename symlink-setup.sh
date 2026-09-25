@@ -157,6 +157,39 @@ ln -s "$source" "$target"
 echo "  LINK  $target → $source"
 done
 
+# Codex CLI: hooks.json is live-synced (a symlink, like the tmux/zsh configs)
+# because it holds nothing machine-specific. config.toml is NOT touched: it is
+# per-machine (notify integrations, model, trust) — same rule as ~/.claude/settings.json.
+mkdir -p "$HOME/.codex"
+
+for f in hooks.json; do
+source="$DOTFILES_DIR/codex/$f"
+target="$HOME/.codex/$f"
+
+if [ ! -e "$source" ]; then
+  echo "  SKIP  codex/$f (not found in dotfiles)"
+  continue
+fi
+
+if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+  echo "  OK    codex/$f"
+  continue
+fi
+
+if [ -e "$target" ] || [ -L "$target" ]; then
+  read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
+  echo
+  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+	echo "  SKIP  codex/$f"
+	continue
+  fi
+  rm -rf "$target"
+fi
+
+ln -s "$source" "$target"
+echo "  LINK  $target → $source"
+done
+
 # One-shot copy: template → real file, only if real file is missing.
 example="$DOTFILES_DIR/claude/settings.example.json"
 target="$HOME/.claude/settings.json"
@@ -164,7 +197,20 @@ if [ -e "$example" ] && [ ! -e "$target" ]; then
 cp "$example" "$target"
 echo "  COPY  $target ← claude/settings.example.json (template — edit per machine)"
 elif [ -e "$target" ]; then
-echo "  KEEP  ~/.claude/settings.json (exists; left alone — diff vs claude/settings.example.json by hand if you want)"
+# Left alone (per-machine), but the tmux-state/reader hooks live in it, so say
+# which claude-tmux-state hook events the template has that this file lacks.
+missing=""
+if command -v jq >/dev/null 2>&1; then
+  events() { jq -r '.hooks // {} | to_entries[] | select(any(.value[].hooks[]?.command; test("claude-tmux-state"))) | .key' "$1" 2>/dev/null; }
+  for ev in $(events "$example"); do
+    events "$target" | grep -qx "$ev" || missing="$missing $ev"
+  done
+fi
+if [ -n "$missing" ]; then
+  echo "  KEEP  ~/.claude/settings.json — missing claude-tmux-state hooks for:$missing (copy those entries from claude/settings.example.json)"
+else
+  echo "  KEEP  ~/.claude/settings.json (exists; hooks match claude/settings.example.json)"
+fi
 fi
 
 echo ""

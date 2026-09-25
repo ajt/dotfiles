@@ -160,6 +160,27 @@ if [ "$ev" = gc ]; then gc; exit 0; fi
 
 [ -n "$pane" ] || exit 0
 
+# Hooks deliver a JSON payload on stdin; transcript_path is the session's JSONL
+# transcript (~/.claude/projects/<slug>/<session>.jsonl). Record it on the
+# window as @agent_transcript so `prefix R` (reader-last | reader-render) can
+# open the last reply as a reader page. Read only on the events that carry it
+# and only when stdin is not a terminal, so manual invocations never block.
+# Not cleared on SessionEnd/gc: the file outlives the session, and the next
+# SessionStart on the window overwrites it.
+case "$ev" in
+  SessionStart|UserPromptSubmit|Stop)
+    if [ ! -t 0 ]; then
+      payload=$(cat 2>/dev/null)
+      if command -v jq >/dev/null 2>&1; then
+        tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
+      else
+        tp=$(printf '%s' "$payload" | sed -n 's/.*"transcript_path":"\([^"]*\)".*/\1/p' | head -1)
+      fi
+      [ -n "$tp" ] && tmux set-option -w -t "$pane" @agent_transcript "$tp" 2>/dev/null
+    fi
+    ;;
+esac
+
 # _tab_for <state> -> the pre-styled glyph fragment window-status-format renders
 # verbatim (tmux draws #[..] styles after expanding #{@claude_tab}). waiting is
 # unstyled: that tab gets a full orange fill from the format itself.
@@ -226,6 +247,8 @@ clear_all() {
   tmux set-option -uw -t "$pane" @claude_color 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_pane 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_bg 2>/dev/null
+  # @agent_transcript is deliberately kept: the transcript file outlives the
+  # session, so prefix-R can still open the last reply after /exit.
 }
 
 # current subagent depth, sanitised to a non-negative integer
