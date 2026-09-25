@@ -197,7 +197,20 @@ if [ -e "$example" ] && [ ! -e "$target" ]; then
 cp "$example" "$target"
 echo "  COPY  $target ← claude/settings.example.json (template — edit per machine)"
 elif [ -e "$target" ]; then
-echo "  KEEP  ~/.claude/settings.json (exists; left alone — diff vs claude/settings.example.json by hand if you want)"
+# Left alone (per-machine), but the tmux-state/reader hooks live in it, so say
+# which claude-tmux-state hook events the template has that this file lacks.
+missing=""
+if command -v jq >/dev/null 2>&1; then
+  events() { jq -r '.hooks // {} | to_entries[] | select(any(.value[].hooks[]?.command; test("claude-tmux-state"))) | .key' "$1" 2>/dev/null; }
+  for ev in $(events "$example"); do
+    events "$target" | grep -qx "$ev" || missing="$missing $ev"
+  done
+fi
+if [ -n "$missing" ]; then
+  echo "  KEEP  ~/.claude/settings.json — missing claude-tmux-state hooks for:$missing (copy those entries from claude/settings.example.json)"
+else
+  echo "  KEEP  ~/.claude/settings.json (exists; hooks match claude/settings.example.json)"
+fi
 fi
 
 echo ""
