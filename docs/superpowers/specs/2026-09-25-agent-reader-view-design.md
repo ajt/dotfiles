@@ -77,10 +77,10 @@ So the primary path reads the transcript and never cleans anything.
   Confirm a Stop hook fires on 0.157 (it may need `[features] codex_hooks =
   true` in `config.toml`), that `TMUX_PANE` is in its environment, and that
   `transcript_path` is non-null (else the env-var fallback runs).
-- pandoc could not be installed here: Homebrew is blocked until
-  `sudo xcodebuild -license accept`. Everything was tested with the official
-  pandoc 3.11 binary on a temporary PATH; `prefix R` / the Quick Action fail
-  with "pandoc not found" until `brew install pandoc` (or `./brew.sh`) runs.
+- `reader-clean` is heuristic by nature. Known losses: a titled box
+  (`┌── title ──┐`) drops its title; a cell row copied with side-panel text
+  after the closing `│` gains a stray cell; Codex's narrow-width stacked
+  tables pass through as-is.
 - `reader-clean`'s Codex rule-table branch is built from Codex's renderer
   constants (`TABLE_HEADER_SEPARATOR_CHAR = '━'`, gap 2, padding 1), not from
   a live copy. Check one real table.

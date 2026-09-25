@@ -129,7 +129,11 @@ def main():
                     help="every text block of each turn, not just the final reply")
     a = ap.parse_args()
 
-    kind = detect(a.transcript)
+    try:
+        kind = detect(a.transcript)
+    except OSError as e:
+        sys.stderr.write(f"reader-last: cannot read transcript: {e.strerror}: {a.transcript}\n")
+        return 1
     gen = codex_turns if kind == "codex" else claude_turns
     turns = list(gen(records(a.transcript), a.all))
     if not turns:

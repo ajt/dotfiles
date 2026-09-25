@@ -34,6 +34,7 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 BOX = "─━│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪═╒╕╘╛╟╢╤╧╫"
 BOX_LINE = re.compile(rf"^\s*[{BOX}\s]+$")           # separators, borders, rules
 BOX_ROW = re.compile(r"^\s*[│┃]")                      # a content row of a box table
+BOX_SEP = re.compile(r"^\s*[┌├└╭╰╞╒╘][─━┬┴┼┤┐┘╮╯╡╕╛╤╧╪═]+")  # a rule, even with text after it
 BOX_START = re.compile(r"^\s*[┌╭│┃├╞]")                # any line that can open a box table
 HEAVY_RULE = re.compile(r"^\s*━+(\s+━+)*\s*$")          # codex header rule
 LIGHT_RULE = re.compile(r"^\s*─+(\s+─+)*\s*$")          # codex body separator
@@ -63,8 +64,8 @@ def box_table(lines, i):
     rows = []
     while i < len(lines):
         ln = lines[i]
-        if BOX_LINE.match(ln) and ln.strip():
-            i += 1
+        if (BOX_LINE.match(ln) and ln.strip()) or BOX_SEP.match(ln):
+            i += 1  # border/rule; trailing text (a side panel copied along) is dropped
             continue
         if not BOX_ROW.match(ln):
             break
@@ -198,12 +199,15 @@ def clean(text):
                 out.extend([""] + md + [""])
                 i = j
                 continue
-            # banner box: keep the text lines, drop the frame
-            for k in range(i, j):
-                if not BOX_LINE.match(lines[k]):
-                    out.append(EDGE_BAR.sub("", lines[k]).strip())
-            i = j
-            continue
+            if j > i:
+                # banner box: keep the text lines, drop the frame
+                for k in range(i, j):
+                    if not (BOX_LINE.match(lines[k]) or BOX_SEP.match(lines[k])):
+                        out.append(EDGE_BAR.sub("", lines[k]).strip())
+                i = j
+                continue
+            # nothing consumed (a tree listing, a titled ┌── box, a rule with
+            # trailing text): fall through to the per-line cleanup below
         if i + 1 < len(lines) and HEAVY_RULE.match(lines[i + 1]) and ln.strip():
             md, j = codex_table(lines, i)
             out.extend([""] + md + [""])
