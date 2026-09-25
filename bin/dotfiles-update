@@ -55,6 +55,8 @@ else
     say "  WOULD  git pull --ff-only (on $(git rev-parse --abbrev-ref HEAD))"
     git fetch -q origin || exit 1
     new=$(git rev-parse '@{upstream}' 2>/dev/null || git rev-parse HEAD)
+    # upstream behind or equal to HEAD (nothing a pull would bring): no changes
+    git merge-base --is-ancestor "$new" "$old" 2>/dev/null && new=$old
   else
     say "  RUN    git pull --ff-only (on $(git rev-parse --abbrev-ref HEAD))"
     git pull -q --ff-only || { echo "dotfiles-update: pull failed (diverged? resolve by hand)" >&2; exit 1; }
