@@ -64,14 +64,17 @@ What each kind of change needs (this is what the command decides for you):
 | a script in `bin/` | nothing — `~/bin` is a link to the directory |
 | a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
 | `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
-| `claude/settings.example.json` | `./symlink-setup.sh` tells you which hooks your `~/.claude/settings.json` lacks; copy those entries by hand (the file is per-machine and never overwritten) |
+| `claude/settings.example.json` | `./symlink-setup.sh` merges any missing `claude-tmux-state` hook entries into `~/.claude/settings.json` (rest of the file untouched) |
 | `brew.sh` / `brew-cask.sh` | re-run the script |
-| `.macos` | `sh .macos` |
+| `.macos` | `sh .macos` (the updater runs it; asks for your password once, restarts Finder/Dock) |
 
-`symlink-setup.sh` is idempotent: existing links print `OK`, a file that is
-not the expected link asks before being replaced, and it never edits
-`~/.claude/settings.json`, `~/.codex/config.toml`, `~/.extra` or anything
-else that is per-machine.
+`symlink-setup.sh` is idempotent and never prompts: existing links print
+`OK`; a real file or directory in the way is moved to
+`~/.dotfiles-backup/<timestamp>/` (never deleted) and replaced by the link;
+`~/.claude/settings.json` only ever gains the `claude-tmux-state` hook
+entries it is missing (previous copy backed up first). `~/.extra`,
+`~/.gitconfig.local`, `~/.ssh/config` and `~/.codex/config.toml` are
+per-machine and never touched.
 
 ## Zsh plugins
 

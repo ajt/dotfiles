@@ -1,11 +1,45 @@
 #!/bin/bash
 
 # Symlink dotfiles into ~/
-# Run from the dotfiles directory
+# Run from the dotfiles directory, or via `dotfiles update`. Idempotent and
+# non-interactive: an existing file or directory in the way is moved to
+# ~/.dotfiles-backup/<timestamp>/ (never deleted) and replaced by the link.
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+moved=0
 
-# Files/dirs to symlink
+# link_into <source> <target> <label> — make $target a symlink to $source.
+#   OK     already the right link
+#   MOVED  something else was there; it went to $BACKUP_DIR, then linked
+#   LINK   nothing was there
+link_into() {
+  local source=$1 target=$2 label=$3 rel
+  if [ ! -e "$source" ]; then
+    echo "  SKIP  $label (not found in dotfiles)"
+    return 0
+  fi
+  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+    echo "  OK    $label"
+    return 0
+  fi
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    rel=${target#"$HOME"/}
+    mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+    mv "$target" "$BACKUP_DIR/$rel"
+    moved=$((moved + 1))
+    echo "  MOVED $label (was a real file/dir — kept at ~/.dotfiles-backup/${BACKUP_DIR##*/}/$rel)"
+  else
+    echo "  LINK  $label"
+  fi
+  mkdir -p "$(dirname "$target")"
+  ln -s "$source" "$target"
+}
+
+echo "Symlinking dotfiles from $DOTFILES_DIR to $HOME"
+echo ""
+
+# ─── files/dirs straight into $HOME ─────────────────────────────────────────
 FILES=(
   .zshrc
   .aliases
@@ -20,200 +54,88 @@ FILES=(
   .cwork
   bin
 )
-
-echo "Symlinking dotfiles from $DOTFILES_DIR to $HOME"
-echo ""
-
 for item in "${FILES[@]}"; do
-  source="$DOTFILES_DIR/$item"
-  target="$HOME/$item"
-
-  if [ ! -e "$source" ]; then
-    echo "  SKIP  $item (not found in dotfiles)"
-    continue
-  fi
-
-  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-    echo "  OK    $item"
-    continue
-  fi
-
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-    echo
-    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-      echo "  SKIP  $item"
-      continue
-    fi
-    rm -rf "$target"
-  fi
-
-  ln -s "$source" "$target"
-  echo "  LINK  $target → $source"
+  link_into "$DOTFILES_DIR/$item" "$HOME/$item" "$item"
 done
 
-# ─── .config subdirectories (symlink individually, not the whole .config) ────
-mkdir -p "$HOME/.config"
-
+# ─── .config subdirectories (individually, not the whole .config) ───────────
 CONFIG_DIRS=(
   ghostty
   karabiner
 )
-
 for dir in "${CONFIG_DIRS[@]}"; do
-  source="$DOTFILES_DIR/.config/$dir"
-  target="$HOME/.config/$dir"
-
-  if [ ! -e "$source" ]; then
-    echo "  SKIP  .config/$dir (not found in dotfiles)"
-    continue
-  fi
-
-  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-    echo "  OK    .config/$dir"
-    continue
-  fi
-
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-    echo
-    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-      echo "  SKIP  .config/$dir"
-      continue
-    fi
-    rm -rf "$target"
-  fi
-
-  ln -s "$source" "$target"
-  echo "  LINK  $target → $source"
+  link_into "$DOTFILES_DIR/.config/$dir" "$HOME/.config/$dir" ".config/$dir"
 done
 
-# ─── macOS Services / Finder Quick Actions (symlink into ~/Library/Services) ─
-mkdir -p "$HOME/Library/Services"
-
+# ─── macOS Services / Finder Quick Actions ──────────────────────────────────
+# The Services registry handles symlinked bundles fine; pbs -flush makes new
+# ones appear without a re-login.
 for source in "$DOTFILES_DIR"/services/*.workflow; do
   [ -e "$source" ] || continue
   item="$(basename "$source")"
-  target="$HOME/Library/Services/$item"
-
-  if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-    echo "  OK    services/$item"
-    continue
-  fi
-
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-    echo
-    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-      echo "  SKIP  services/$item"
-      continue
-    fi
-    rm -rf "$target"
-  fi
-
-  ln -s "$source" "$target"
-  echo "  LINK  $target → $source"
+  link_into "$source" "$HOME/Library/Services/$item" "services/$item"
 done
-
-# Nudge the Services registry so new Quick Actions appear without a re-login.
 /System/Library/CoreServices/pbs -flush 2>/dev/null || true
 
-# Statusline is a pure renderer — safe to share publicly, live-synced.
-# settings.json is COPIED from a public template only when missing, so each
-# machine's real settings (private marketplaces, security flags, etc.) stay
-# out of this public repo. Same private-overlay spirit as ~/.extra.
-mkdir -p "$HOME/.claude/skills"
-
+# ─── Claude Code ─────────────────────────────────────────────────────────────
+# Pure renderers/skills are live-synced. settings.json is per-machine (private
+# marketplaces, security flags, …): seeded from the public template only when
+# missing; afterwards only the claude-tmux-state hook entries are kept in sync,
+# by merging in whatever events the template has that the file lacks.
 CLAUDE_SYMLINK_FILES=(
-statusline-command.sh
-skills/prototype
+  statusline-command.sh
+  skills/prototype
 )
-
 for f in "${CLAUDE_SYMLINK_FILES[@]}"; do
-source="$DOTFILES_DIR/claude/$f"
-target="$HOME/.claude/$f"
-
-if [ ! -e "$source" ]; then
-  echo "  SKIP  claude/$f (not found in dotfiles)"
-  continue
-fi
-
-if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-  echo "  OK    claude/$f"
-  continue
-fi
-
-if [ -e "$target" ] || [ -L "$target" ]; then
-  read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-  echo
-  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-	echo "  SKIP  claude/$f"
-	continue
-  fi
-  rm -rf "$target"
-fi
-
-ln -s "$source" "$target"
-echo "  LINK  $target → $source"
+  link_into "$DOTFILES_DIR/claude/$f" "$HOME/.claude/$f" "claude/$f"
 done
 
-# Codex CLI: hooks.json is live-synced (a symlink, like the tmux/zsh configs)
-# because it holds nothing machine-specific. config.toml is NOT touched: it is
-# per-machine (notify integrations, model, trust) — same rule as ~/.claude/settings.json.
-mkdir -p "$HOME/.codex"
-
-for f in hooks.json; do
-source="$DOTFILES_DIR/codex/$f"
-target="$HOME/.codex/$f"
-
-if [ ! -e "$source" ]; then
-  echo "  SKIP  codex/$f (not found in dotfiles)"
-  continue
-fi
-
-if [ -e "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-  echo "  OK    codex/$f"
-  continue
-fi
-
-if [ -e "$target" ] || [ -L "$target" ]; then
-  read -p "  '$target' exists. Overwrite? (y/n) " -n 1 reply
-  echo
-  if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-	echo "  SKIP  codex/$f"
-	continue
-  fi
-  rm -rf "$target"
-fi
-
-ln -s "$source" "$target"
-echo "  LINK  $target → $source"
-done
-
-# One-shot copy: template → real file, only if real file is missing.
 example="$DOTFILES_DIR/claude/settings.example.json"
 target="$HOME/.claude/settings.json"
 if [ -e "$example" ] && [ ! -e "$target" ]; then
-cp "$example" "$target"
-echo "  COPY  $target ← claude/settings.example.json (template — edit per machine)"
+  mkdir -p "$HOME/.claude"
+  cp "$example" "$target"
+  echo "  COPY  ~/.claude/settings.json ← claude/settings.example.json (template — edit per machine)"
 elif [ -e "$target" ]; then
-# Left alone (per-machine), but the tmux-state/reader hooks live in it, so say
-# which claude-tmux-state hook events the template has that this file lacks.
-missing=""
-if command -v jq >/dev/null 2>&1; then
-  events() { jq -r '.hooks // {} | to_entries[] | select(any(.value[].hooks[]?.command; test("claude-tmux-state"))) | .key' "$1" 2>/dev/null; }
-  for ev in $(events "$example"); do
-    events "$target" | grep -qx "$ev" || missing="$missing $ev"
-  done
-fi
-if [ -n "$missing" ]; then
-  echo "  KEEP  ~/.claude/settings.json — missing claude-tmux-state hooks for:$missing (copy those entries from claude/settings.example.json)"
-else
-  echo "  KEEP  ~/.claude/settings.json (exists; hooks match claude/settings.example.json)"
-fi
+  if command -v jq >/dev/null 2>&1; then
+    events() { jq -r '.hooks // {} | to_entries[] | select(any(.value[].hooks[]?.command; test("claude-tmux-state"))) | .key' "$1" 2>/dev/null; }
+    missing=""
+    for ev in $(events "$example"); do
+      events "$target" | grep -qx "$ev" || missing="$missing $ev"
+    done
+    if [ -n "$missing" ]; then
+      rel=${target#"$HOME"/}
+      mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+      cp "$target" "$BACKUP_DIR/$rel"
+      # append the template's entries for each missing event; everything else
+      # in the file (permissions, env, other hooks) is untouched.
+      if merged=$(jq --slurpfile t "$example" --arg evs "$missing" '
+            ($evs | split(" ") | map(select(. != ""))) as $missing
+            | .hooks = ((.hooks // {}) as $h
+                | reduce $missing[] as $ev ($h;
+                    .[$ev] = ((.[$ev] // []) + $t[0].hooks[$ev])))' "$target") \
+         && [ -n "$merged" ] && printf '%s\n' "$merged" > "$target"; then
+        echo "  MERGE ~/.claude/settings.json ← claude-tmux-state hooks for:$missing (previous copy in ~/.dotfiles-backup/${BACKUP_DIR##*/}/)"
+      else
+        echo "  KEEP  ~/.claude/settings.json (could not merge hooks for:$missing — copy them from claude/settings.example.json)"
+      fi
+    else
+      echo "  OK    ~/.claude/settings.json (hooks match claude/settings.example.json)"
+    fi
+  else
+    echo "  KEEP  ~/.claude/settings.json (jq not installed; hooks not checked)"
+  fi
 fi
 
+# ─── Codex CLI ───────────────────────────────────────────────────────────────
+# hooks.json is live-synced (nothing machine-specific in it). config.toml is
+# per-machine (notify integrations, model, trust) and never touched.
+link_into "$DOTFILES_DIR/codex/hooks.json" "$HOME/.codex/hooks.json" "codex/hooks.json"
+
 echo ""
-echo "Done. Remember to also symlink manually if needed:"
-echo "  ~/.ssh/config"
-echo "  ~/.tmuxinator/"
+if [ "$moved" -gt 0 ]; then
+  echo "Done. $moved pre-existing file(s) were moved aside, not deleted: ~/.dotfiles-backup/${BACKUP_DIR##*/}/"
+else
+  echo "Done."
+fi
+echo "Per-machine, never touched by this script: ~/.extra  ~/.gitconfig.local  ~/.ssh/config  ~/.claude/settings.json (beyond hook sync)  ~/.codex/config.toml"

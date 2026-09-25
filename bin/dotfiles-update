@@ -12,8 +12,8 @@
 #   symlink-setup.sh, services/, codex/, claude/, .config/, or a new
 #   top-level dotfile                    → ./symlink-setup.sh (idempotent)
 #   .tmux.conf changed                   → tmux source-file (if a server is running)
-#   .macos changed                       → reminder (prompts for sudo; run by hand)
-#   shell config changed                 → reminder to open a new shell
+#   .macos changed                       → sh .macos (asks for your password once)
+#   shell config changed                 → one closing line: open a new shell
 # The repo is found through the ~/.zshrc symlink, so nothing is hardcoded.
 set -u
 
@@ -95,9 +95,11 @@ if touched '^\.tmux\.conf$'; then
   fi
 fi
 
-touched '^\.macos$' && say "  NOTE   .macos changed — run 'sh .macos' yourself (asks for sudo)"
-touched '^(\.zshrc|\.aliases|\.exports|\.functions|\.inputrc|\.dircolors)$' && say "  NOTE   shell config changed — open a new shell"
-touched '^\.vimrc$' && say "  NOTE   .vimrc changed — takes effect in new vim sessions"
-touched '^zsh-plugins/' && say "  NOTE   zsh-plugins/ changed — submodule synced; open a new shell"
+# .macos asks for your password once (sudo -v) and restarts Finder/Dock at the end.
+touched '^\.macos$' && run "sh .macos" sh .macos
 
-say "Done."
+if touched '^(\.zshrc|\.aliases|\.exports|\.functions|\.inputrc|\.dircolors|\.vimrc)$|^zsh-plugins/'; then
+  say "Done. Open a new shell to pick up the shell config changes."
+else
+  say "Done."
+fi
