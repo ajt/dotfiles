@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""reader-last — print an agent's last reply as the original Markdown.
+
+    reader-last [-n N] [--all] TRANSCRIPT.jsonl
+
+Reads the JSONL transcript Claude Code or Codex keeps for a session and prints
+the final assistant text of the last turn (or the last N turns, oldest first,
+separated by a horizontal rule). The stored text is the Markdown the model
+produced — pipe tables, fences, bold — not the box-drawn terminal rendering,
+so there is nothing to clean up before `reader-render`.
+
+Format is detected from the file, not the path:
+  Claude Code  ~/.claude/projects/<slug>/<session>.jsonl
+               {"type":"assistant","message":{"content":[{"type":"text",...}]}}
+               A turn's final reply is the last text block before the next
+               real user prompt (tool_result records are not prompts).
+  Codex        ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl
+               {"type":"response_item","payload":{"type":"message",
+                "role":"assistant","phase":"final_answer","content":[
+                {"type":"output_text","text":...}]}}
+               final_answer marks the completed reply; commentary messages are
+               the interim narration and are skipped unless --all is given.
+"""
+import argparse
+import json
+import sys
+
+
+def records(path):
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                # a record still being written (partial last line) — skip it
+                continue
+
+
+def claude_turns(recs, everything):
+    """Yield the reply text per turn from a Claude Code transcript."""
+    turns, cur = [], []
+    for r in recs:
+        if r.get("isSidechain") or r.get("isMeta"):
+            continue
+        t = r.get("type")
+        msg = r.get("message") or {}
+        content = msg.get("content")
+        if t == "user":
+            # a real prompt: string content, or a list holding a text block
+            # (tool_result lists are Claude's own tool plumbing, not a prompt)
+            is_prompt = isinstance(content, str) or (
+                isinstance(content, list)
+                and any(isinstance(c, dict) and c.get("type") == "text" for c in content)
+                and not any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content)
+            )
+            if is_prompt:
+                if cur:
+                    turns.append(cur)
+                cur = []
+        elif t == "assistant" and isinstance(content, list):
+            if r.get("isApiErrorMessage"):
+                continue
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "text" and c.get("text", "").strip():
+                    cur.append(c["text"])
+    if cur:
+        turns.append(cur)
+    for blocks in turns:
+        yield "\n\n".join(blocks) if everything else blocks[-1]
+
+
+def codex_turns(recs, everything):
+    """Yield the reply text per turn from a Codex rollout transcript."""
+    turns, cur, seen_final = [], [], False
+    for r in recs:
+        if r.get("type") != "response_item":
+            continue
+        p = r.get("payload") or {}
+        if p.get("type") != "message":
+            continue
+        role = p.get("role")
+        if role == "user":
+            if cur:
+                turns.append((cur, seen_final))
+            cur, seen_final = [], False
+            continue
+        if role != "assistant":
+            continue
+        text = "".join(
+            c.get("text", "") for c in p.get("content") or []
+            if isinstance(c, dict) and c.get("type") == "output_text"
+        )
+        if not text.strip():
+            continue
+        final = p.get("phase") in ("final_answer", "final")
+        if everything:
+            cur.append(text)
+        elif final:
+            cur.append(text)
+            seen_final = True
+        elif not seen_final:
+            cur.append(text)  # keep commentary as a fallback until a final arrives
+    if cur:
+        turns.append((cur, seen_final))
+    for blocks, final in turns:
+        if everything:
+            yield "\n\n".join(blocks)
+        else:
+            yield blocks[-1]
+
+
+def detect(path):
+    for r in records(path):
+        if r.get("type") == "response_item" or "payload" in r:
+            return "codex"
+        if r.get("type") in ("assistant", "user", "summary") or "message" in r:
+            return "claude"
+    return "claude"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("transcript")
+    ap.add_argument("-n", type=int, default=1, help="last N turns (default 1)")
+    ap.add_argument("--all", action="store_true",
+                    help="every text block of each turn, not just the final reply")
+    a = ap.parse_args()
+
+    kind = detect(a.transcript)
+    gen = codex_turns if kind == "codex" else claude_turns
+    turns = list(gen(records(a.transcript), a.all))
+    if not turns:
+        sys.stderr.write(f"reader-last: no assistant reply found in {a.transcript}\n")
+        return 1
+    n = max(1, a.n)
+    sys.stdout.write("\n\n---\n\n".join(t.rstrip() for t in turns[-n:]) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

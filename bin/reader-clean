@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""reader-clean — turn copied terminal text back into Markdown.
+
+    pbpaste | reader-clean | reader-render
+
+The clipboard fallback for the reader view (the primary path, `reader-last`,
+reads the agent's transcript and needs none of this). Heuristics, applied
+outside fenced code blocks only:
+
+  * ANSI escapes and trailing whitespace are dropped (two trailing spaces are
+    a hard break in GFM); the indentation shared by every line is removed.
+  * Claude Code's box-drawn tables (┌─┬─┐ / │ a │ b │ / ├─┼─┤ / └─┴─┘, also the
+    rounded ╭╮╰╯ variant) become GFM pipe tables. The first row is the header.
+    A row whose first cell is blank continues the previous row (a wrapped cell).
+  * Codex's rule tables (space-aligned columns under a ━━━ ━━━ header rule,
+    ─── rules between rows) become pipe tables: the ━ runs give the column
+    spans, and every following row is sliced at those spans until a blank
+    line. The stacked key/value layout Codex uses at narrow widths has no
+    column structure left and is passed through unchanged.
+  * Agent prompt glyphs at line start: ⏺ (Claude's message marker) and the
+    Codex • block marker are dropped, so the text becomes a paragraph; ⎿ (tool
+    result) and ◦/▪ become list items; ❯ (your prompt) becomes a blockquote.
+    A leading `•` followed by text is a real bullet in most terminals' Markdown
+    rendering, so it becomes `- `.
+  * Leftover border characters: a │ or ┃ at the start or end of a line is
+    stripped, and lines made only of rules/corners are dropped.
+"""
+import re
+import sys
+
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[@-Z\\-_]")
+FENCE = re.compile(r"^\s*(```|~~~)")
+BOX = "─━│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪═╒╕╘╛╟╢╤╧╫"
+BOX_LINE = re.compile(rf"^\s*[{BOX}\s]+$")           # separators, borders, rules
+BOX_ROW = re.compile(r"^\s*[│┃]")                      # a content row of a box table
+BOX_START = re.compile(r"^\s*[┌╭│┃├╞]")                # any line that can open a box table
+HEAVY_RULE = re.compile(r"^\s*━+(\s+━+)*\s*$")          # codex header rule
+LIGHT_RULE = re.compile(r"^\s*─+(\s+─+)*\s*$")          # codex body separator
+BLOCK_GLYPH = re.compile(r"^(\s*)[⏺•]\s*$")             # a marker alone on its line
+PARA_GLYPH = re.compile(r"^(\s*)⏺\s+")
+BULLET_GLYPH = re.compile(r"^(\s*)[•◦▪⎿]\s+")
+PROMPT_GLYPH = re.compile(r"^(\s*)❯\s+")
+EDGE_BAR = re.compile(r"^\s?[│┃]\s?|\s?[│┃]\s?$")
+
+
+def cell(s):
+    return s.strip().replace("|", "\\|")
+
+
+def pipe_table(rows):
+    if not rows:
+        return []
+    width = max(len(r) for r in rows)
+    rows = [r + [""] * (width - len(r)) for r in rows]
+    out = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * width]
+    out += ["| " + " | ".join(r) + " |" for r in rows[1:]]
+    return out
+
+
+def box_table(lines, i):
+    """Consume a Claude Code box table starting at lines[i]; return (md, next_i)."""
+    rows = []
+    while i < len(lines):
+        ln = lines[i]
+        if BOX_LINE.match(ln) and ln.strip():
+            i += 1
+            continue
+        if not BOX_ROW.match(ln):
+            break
+        inner = ln.strip()
+        inner = inner[1:] if inner[0] in "│┃" else inner
+        inner = inner[:-1] if inner and inner[-1] in "│┃" else inner
+        cells = [cell(c) for c in re.split(r"[│┃]", inner)]
+        if rows and cells and cells[0] == "" and any(cells[1:]):
+            prev = rows[-1]
+            for k, c in enumerate(cells):
+                if c:
+                    if k < len(prev):
+                        prev[k] = (prev[k] + " " + c).strip()
+                    else:
+                        prev.append(c)
+        else:
+            rows.append(cells)
+        i += 1
+    if not any(len(r) > 1 for r in rows):
+        return None, i  # a banner box, not a table: caller falls through
+    return pipe_table(rows), i
+
+
+def rule_spans(rule):
+    return [(m.start(), m.end()) for m in re.finditer(r"━+", rule)]
+
+
+def slice_row(ln, spans):
+    cells = []
+    for k, (s, e) in enumerate(spans):
+        s = 0 if k == 0 else s
+        e = len(ln) if k == len(spans) - 1 else e
+        cells.append(cell(ln[s:e]))
+    return cells
+
+
+def codex_table(lines, i):
+    """lines[i+1] is a ━ header rule; lines[i] is the header row."""
+    spans = rule_spans(lines[i + 1])
+    rows = [slice_row(lines[i], spans)]
+    i += 2
+    while i < len(lines) and lines[i].strip():
+        if LIGHT_RULE.match(lines[i]):
+            i += 1
+            continue
+        if HEAVY_RULE.match(lines[i]) or FENCE.match(lines[i]):
+            break
+        rows.append(slice_row(lines[i], spans))
+        i += 1
+    return pipe_table(rows), i
+
+
+def dedent(lines):
+    indents = [len(l) - len(l.lstrip(" ")) for l in lines if l.strip()]
+    n = min(indents) if indents else 0
+    return [l[n:] if l.strip() else "" for l in lines]
+
+
+MSG_MARK = re.compile(r"^(\s*)([⏺❯])(\s+)\S")
+
+
+def undent_messages(lines):
+    """Claude Code indents a message's continuation lines under its ⏺ marker
+    (`⏺ text` / `  more text`). Strip that hanging indent so wrapped lists,
+    fences and paragraphs line up with their first line again."""
+    out, hang = [], None
+    for ln in lines:
+        m = MSG_MARK.match(ln)
+        if m:
+            hang = len(m.group(1)) + len(m.group(2)) + len(m.group(3))
+            out.append(ln)
+            continue
+        if hang is not None and ln.strip():
+            ind = len(ln) - len(ln.lstrip(" "))
+            if ind >= hang:
+                ln = ln[hang:]
+            else:
+                hang = None
+        out.append(ln)
+    return out
+
+
+def clean(text):
+    text = ANSI.sub("", text).replace("\r\n", "\n").replace("\r", "\n")
+    lines = dedent([l.rstrip() for l in text.split("\n")])
+    lines = undent_messages(lines)
+    out, i, fence = [], 0, None
+    while i < len(lines):
+        ln = lines[i]
+        m = FENCE.match(ln)
+        if fence:
+            out.append(ln)
+            if m and m.group(1) == fence:
+                fence = None
+            i += 1
+            continue
+        if m:
+            fence = m.group(1)
+            out.append(ln)
+            i += 1
+            continue
+        if BOX_START.match(ln) and (
+            BOX_ROW.match(ln) or (i + 1 < len(lines) and BOX_ROW.match(lines[i + 1]))
+        ):
+            md, j = box_table(lines, i)
+            if md:
+                out.extend([""] + md + [""])
+                i = j
+                continue
+            # banner box: keep the text lines, drop the frame
+            for k in range(i, j):
+                if not BOX_LINE.match(lines[k]):
+                    out.append(EDGE_BAR.sub("", lines[k]).strip())
+            i = j
+            continue
+        if i + 1 < len(lines) and HEAVY_RULE.match(lines[i + 1]) and ln.strip():
+            md, j = codex_table(lines, i)
+            out.extend([""] + md + [""])
+            i = j
+            continue
+        if BOX_LINE.match(ln) and ln.strip():
+            i += 1  # stray rule / border line
+            continue
+        if BLOCK_GLYPH.match(ln):
+            out.append("")
+            i += 1
+            continue
+        ln = PARA_GLYPH.sub(r"\1", ln)
+        ln = BULLET_GLYPH.sub(r"\1- ", ln)
+        ln = PROMPT_GLYPH.sub(r"\1> ", ln)
+        ln = EDGE_BAR.sub("", ln)
+        out.append(ln)
+        i += 1
+    text = "\n".join(out)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip("\n")
+    return text + "\n" if text else ""
+
+
+if __name__ == "__main__":
+    sys.stdout.write(clean(sys.stdin.read()))

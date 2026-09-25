@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# reader-render — Markdown on stdin -> styled standalone HTML, opened in the
+# default browser. The one renderer behind every reader-view entry point:
+#   reader-last <transcript> | reader-render     (tmux prefix-R: agent's last reply)
+#   pbpaste | reader-clean | reader-render        (clip-reader / Quick Action)
+#   reader-render < notes.md
+# Options:
+#   -o FILE   write here instead of /tmp/reader-<timestamp>.html
+#   -n        don't open the result, just print its path
+#   -t TITLE  <title> (default "Terminal output"; never rendered as a heading)
+# Runs outside any shell rc (Automator, tmux run-shell), so PATH is set here.
+set -u
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+out='' open=1 title='Terminal output'
+while getopts 'o:nt:' opt; do
+  case "$opt" in
+    o) out=$OPTARG ;;
+    n) open=0 ;;
+    t) title=$OPTARG ;;
+    *) echo "usage: reader-render [-o FILE] [-n] [-t TITLE] < markdown" >&2; exit 2 ;;
+  esac
+done
+
+if ! command -v pandoc >/dev/null 2>&1; then
+  echo "reader-render: pandoc not found (brew install pandoc)" >&2
+  exit 127
+fi
+
+[ -n "$out" ] || out="/tmp/reader-$(date +%Y%m%d-%H%M%S).html"
+
+css=$(mktemp -t reader-css) || exit 1
+trap 'rm -f "$css"' EXIT
+cat > "$css" <<'CSS'
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1f1f1f; --muted: #5c5c5c; --rule: #d9d6cf;
+  --code-bg: #f1efe9; --code-fg: #1f1f1f; --link: #1a5fb4; --quote: #8a8a8a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141414; --fg: #e4e2dc; --muted: #a3a09a; --rule: #333;
+    --code-bg: #1e1e1e; --code-fg: #e4e2dc; --link: #7fb2f0; --quote: #666;
+  }
+}
+html { background: var(--bg); }
+body {
+  max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 6rem;
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 19px; line-height: 1.7; color: var(--fg); background: var(--bg);
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  line-height: 1.25; margin: 2em 0 0.6em; font-weight: 650; letter-spacing: -0.01em;
+}
+h1 { font-size: 1.9em; } h2 { font-size: 1.45em; } h3 { font-size: 1.15em; }
+h1:first-child, h2:first-child { margin-top: 0; }
+p, ul, ol, blockquote, table, pre { margin: 0 0 1.15em; }
+li { margin: 0.25em 0; } li > p { margin-bottom: 0.5em; }
+a { color: var(--link); }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 2.5em 0; }
+blockquote { margin-left: 0; padding-left: 1em; border-left: 3px solid var(--quote); color: var(--muted); }
+code, pre, kbd, samp {
+  font-family: ui-monospace, "SF Mono", Menlo, "Roboto Mono", Consolas, monospace;
+  font-size: 0.82em;
+}
+code { background: var(--code-bg); color: var(--code-fg); padding: 0.1em 0.35em; border-radius: 4px; }
+pre {
+  background: var(--code-bg); color: var(--code-fg); padding: 1em 1.2em;
+  border-radius: 8px; overflow-x: auto; line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9em; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: 0.45em 0.7em; text-align: left; vertical-align: top; }
+th { font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 650; background: var(--code-bg); }
+img { max-width: 100%; }
+/* pandoc's own template sets max-width/padding on body; ours above wins by order,
+   and its header/title block is never emitted because we pass pagetitle only. */
+header#title-block-header { display: none; }
+</style>
+CSS
+
+# gfm-raw_html: stray <tags> in terminal output stay visible instead of being
+# swallowed as HTML. pagetitle (not title) keeps pandoc from adding an <h1>.
+pandoc -f gfm-raw_html -t html5 -s --wrap=none \
+  --metadata "pagetitle=$title" --include-in-header "$css" -o "$out" || exit 1
+
+printf '%s\n' "$out"
+[ "$open" -eq 1 ] && open "$out"
+exit 0

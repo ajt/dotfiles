@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# clip-reader — open the clipboard as a reader-view page in the browser.
+# The Finder Quick Action "Open in Reader" (services/) runs this, so it can be
+# bound to a global keyboard shortcut. For text copied out of a terminal it
+# runs `reader-clean` first (glyphs, borders, box tables -> Markdown). Inside
+# tmux, prefix-R (reader-last) is the lossless route for an agent's reply.
+set -u
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
+
+text=$(pbpaste 2>/dev/null)
+if [ -z "${text//[[:space:]]/}" ]; then
+  osascript -e 'display notification "Clipboard has no text to read." with title "Open in Reader"' 2>/dev/null
+  exit 0
+fi
+
+if ! out=$(printf '%s\n' "$text" | "$dir/reader-clean" | "$dir/reader-render" -t 'Clipboard' 2>&1); then
+  osascript -e "display notification \"${out//\"/}\" with title \"Open in Reader failed\"" 2>/dev/null
+  exit 1
+fi
+exit 0
