@@ -10,7 +10,8 @@ My macOS dotfiles. Originally forked from [paulirish/dotfiles](https://github.co
 - **git** config (with [delta](https://github.com/dandavison/delta) for diffs)
 - **Homebrew** formulae and casks
 - **macOS** defaults (curated, not the 500-line kitchen sink)
-- **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path
+- **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path, Open in Reader
+- **Agent reader view** — `prefix R` in tmux opens Claude Code's or Codex's last reply as a clean HTML page (`bin/reader-*`)
 - Shell **aliases**, **exports**, and **functions**
 
 ## New machine setup
@@ -37,6 +38,37 @@ sh .macos
 
 # 6. Restart terminal
 ```
+
+## Updating an existing machine
+
+Most of the repo is symlinked into `$HOME`, so a `git pull` is the update.
+Re-run a setup script only when the pull touched what it installs:
+
+```bash
+cd ~/dotfiles && git pull
+git submodule update --init --remote   # if zsh-plugins/ changed
+./brew.sh                              # if brew.sh changed (new packages, e.g. pandoc)
+./symlink-setup.sh                     # if a new file/bundle needs a link (safe to re-run)
+tmux source ~/.tmux.conf               # or prefix + r, if .tmux.conf changed
+```
+
+What each kind of change needs:
+
+| Changed in the pull | What to do |
+|---|---|
+| `.zshrc`, `.aliases`, `.exports`, `.functions`, `.vimrc`, `.gitconfig` | nothing — open a new shell |
+| `.tmux.conf` | `prefix r` (reload), or restart the tmux server |
+| a script in `bin/` | nothing — `~/bin` is a link to the directory |
+| a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
+| `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
+| `claude/settings.example.json` | `./symlink-setup.sh` tells you which hooks your `~/.claude/settings.json` lacks; copy those entries by hand (the file is per-machine and never overwritten) |
+| `brew.sh` / `brew-cask.sh` | re-run the script |
+| `.macos` | `sh .macos` |
+
+`symlink-setup.sh` is idempotent: existing links print `OK`, a file that is
+not the expected link asks before being replaced, and it never edits
+`~/.claude/settings.json`, `~/.codex/config.toml`, `~/.extra` or anything
+else that is per-machine.
 
 ## Zsh plugins
 
