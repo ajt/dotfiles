@@ -41,18 +41,21 @@ sh .macos
 
 ## Updating an existing machine
 
-Most of the repo is symlinked into `$HOME`, so a `git pull` is the update.
-Re-run a setup script only when the pull touched what it installs:
+One command:
 
 ```bash
-cd ~/dotfiles && git pull
-git submodule update --init --remote   # if zsh-plugins/ changed
-./brew.sh                              # if brew.sh changed (new packages, e.g. pandoc)
-./symlink-setup.sh                     # if a new file/bundle needs a link (safe to re-run)
-tmux source ~/.tmux.conf               # or prefix + r, if .tmux.conf changed
+dotfiles update            # pull, then run only the steps the pull needs
+dotfiles update --dry-run  # show what it would run
+dotfiles update --all      # force every step (a machine that missed many pulls)
+dotfiles update --since main   # already pulled by hand: act on changes since main
 ```
 
-What each kind of change needs:
+`dotfiles update` (`bin/dotfiles-update`) fast-forwards the repo, syncs
+submodules, diffs the old and new commit, and runs the matching steps below.
+`dotfiles cd` jumps into the repo. Most of the repo is symlinked into
+`$HOME`, so for many pulls there is nothing to run at all.
+
+What each kind of change needs (this is what the command decides for you):
 
 | Changed in the pull | What to do |
 |---|---|

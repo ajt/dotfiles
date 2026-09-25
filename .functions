@@ -831,3 +831,15 @@ _cprompt() {
   (( ${#names} )) && compadd -- ${(u)names}
 }
 compdef _cprompt cprompt 2>/dev/null
+
+# dotfiles — `dotfiles update [--all|--dry-run|--since REV]` pulls the repo
+# and runs only the setup steps the pull needs (bin/dotfiles-update);
+# `dotfiles cd` jumps into the repo. Nothing hardcoded: the repo is found
+# through the ~/.zshrc symlink.
+dotfiles() {
+  case "${1:-}" in
+    update) shift; dotfiles-update "$@" ;;
+    cd|'') cd "$(dirname "$(readlink "$HOME/.zshrc")")" || return ;;
+    *) echo "usage: dotfiles update [--all|--dry-run|--since REV] | dotfiles cd" >&2; return 2 ;;
+  esac
+}
