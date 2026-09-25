@@ -18,10 +18,11 @@ outside fenced code blocks only:
     line. The stacked key/value layout Codex uses at narrow widths has no
     column structure left and is passed through unchanged.
   * Agent prompt glyphs at line start: ⏺ (Claude's message marker) and the
-    Codex • block marker are dropped, so the text becomes a paragraph; ⎿ (tool
-    result) and ◦/▪ become list items; ❯ (your prompt) becomes a blockquote.
-    A leading `•` followed by text is a real bullet in most terminals' Markdown
-    rendering, so it becomes `- `.
+    Codex `•` message marker (a column-0 `•` whose hanging block spans more
+    than one paragraph) are dropped, so the text becomes a paragraph, and the
+    2-space hanging indent under them is removed; any other `•`, plus ◦/▪ and
+    ⎿ (tool result), becomes a `- ` list item; ❯ (your prompt) becomes a
+    blockquote.
   * Leftover border characters: a │ or ┃ at the start or end of a line is
     stripped, and lines made only of rules/corners are dropped.
 """
@@ -123,14 +124,38 @@ def dedent(lines):
 
 
 MSG_MARK = re.compile(r"^(\s*)([⏺❯])(\s+)\S")
+DOT_MARK = re.compile(r"^•(\s+)\S")
+
+
+def is_codex_block(lines, i):
+    """A column-0 `•` is Codex's message marker (the whole reply hangs under
+    it, indented by 2) rather than a bullet when the hanging block spans more
+    than one paragraph: a blank line followed by an indented line before the
+    next column-0 line. A wrapped bullet never does that."""
+    j = i + 1
+    while j < len(lines):
+        ln = lines[j]
+        if ln.strip() == "":
+            k = j + 1
+            while k < len(lines) and lines[k].strip() == "":
+                k += 1
+            return k < len(lines) and lines[k].startswith("  ")
+        if not ln.startswith("  "):
+            return False
+        j += 1
+    return False
 
 
 def undent_messages(lines):
     """Claude Code indents a message's continuation lines under its ⏺ marker
-    (`⏺ text` / `  more text`). Strip that hanging indent so wrapped lists,
-    fences and paragraphs line up with their first line again."""
+    (`⏺ text` / `  more text`); Codex does the same under `•`. Strip that
+    hanging indent so wrapped lists, fences and paragraphs line up with their
+    first line again. A Codex `•` marker is rewritten to ⏺ so the main pass
+    drops it like Claude's instead of turning the reply into one bullet."""
     out, hang = [], None
-    for ln in lines:
+    for i, ln in enumerate(lines):
+        if DOT_MARK.match(ln) and is_codex_block(lines, i):
+            ln = "⏺" + ln[1:]
         m = MSG_MARK.match(ln)
         if m:
             hang = len(m.group(1)) + len(m.group(2)) + len(m.group(3))

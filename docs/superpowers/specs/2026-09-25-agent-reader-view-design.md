@@ -43,7 +43,9 @@ So the primary path reads the transcript and never cleans anything.
   indent and the `⏺` hanging indent removed; box tables (Claude) and rule
   tables (Codex, column spans taken from the `━` runs) rewritten as pipe
   tables; single-column boxes treated as banners, not tables; `⏺` dropped,
-  `•`/`⎿` → `- `, `❯` → `> `; edge bars stripped; all of it outside fences only.
+  `•`/`⎿` → `- ` (except a column-0 `•` whose hanging block spans several
+  paragraphs, which is Codex's message marker and is dropped like `⏺`),
+  `❯` → `> `; edge bars stripped; all of it outside fences only.
 - `clip-reader` — `pbpaste | reader-clean | reader-render`, with a
   notification when the clipboard is empty or pandoc is missing.
 - `codex-tmux-hook` — Codex Stop hook (template in `codex/hooks.example.json`).
@@ -53,7 +55,9 @@ So the primary path reads the transcript and never cleans anything.
 - **Transcript on the window.** Every Claude Code hook payload carries
   `transcript_path`; `claude-tmux-state` now reads stdin on SessionStart,
   UserPromptSubmit and Stop and stores it as `@agent_transcript` on the
-  window (cleared with the other `@claude_*` options on SessionEnd and by gc).
+  window. It is deliberately not cleared on SessionEnd or by gc: the file
+  outlives the session, so the last reply stays readable after `/exit`; the
+  next SessionStart on that window overwrites it.
   `codex-tmux-hook` does the same from the Codex Stop payload, falling back to
   `CODEX_THREAD_ID` to locate the rollout file. Codex's `notify` setting is
   deliberately not used: it is single-slot and already taken on the other
@@ -70,8 +74,13 @@ So the primary path reads the transcript and never cleans anything.
 ## Not done / verify on the Codex machine
 
 - Codex reported hooks.json Stop support from documentation, not execution.
-  Confirm a Stop hook fires on 0.157, that `TMUX_PANE` is in its environment,
-  and that `transcript_path` is non-null (else the env-var fallback runs).
+  Confirm a Stop hook fires on 0.157 (it may need `[features] codex_hooks =
+  true` in `config.toml`), that `TMUX_PANE` is in its environment, and that
+  `transcript_path` is non-null (else the env-var fallback runs).
+- pandoc could not be installed here: Homebrew is blocked until
+  `sudo xcodebuild -license accept`. Everything was tested with the official
+  pandoc 3.11 binary on a temporary PATH; `prefix R` / the Quick Action fail
+  with "pandoc not found" until `brew install pandoc` (or `./brew.sh`) runs.
 - `reader-clean`'s Codex rule-table branch is built from Codex's renderer
   constants (`TABLE_HEADER_SEPARATOR_CHAR = '━'`, gap 2, padding 1), not from
   a live copy. Check one real table.

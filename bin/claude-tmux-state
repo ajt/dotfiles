@@ -135,7 +135,6 @@ gc() {
     tmux set-option -uw -t "$w" @claude_color 2>/dev/null
     tmux set-option -uw -t "$w" @claude_pane 2>/dev/null
     tmux set-option -uw -t "$w" @claude_bg 2>/dev/null   # dead claude: drop any stale overlay
-    tmux set-option -uw -t "$w" @agent_transcript 2>/dev/null
   done
 }
 # _bg_check <window> <pane_pid> — overlay derivation for a window kept alive by
@@ -166,6 +165,8 @@ if [ "$ev" = gc ]; then gc; exit 0; fi
 # window as @agent_transcript so `prefix R` (reader-last | reader-render) can
 # open the last reply as a reader page. Read only on the events that carry it
 # and only when stdin is not a terminal, so manual invocations never block.
+# Not cleared on SessionEnd/gc: the file outlives the session, and the next
+# SessionStart on the window overwrites it.
 case "$ev" in
   SessionStart|UserPromptSubmit|Stop)
     if [ ! -t 0 ]; then
@@ -246,7 +247,8 @@ clear_all() {
   tmux set-option -uw -t "$pane" @claude_color 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_pane 2>/dev/null
   tmux set-option -uw -t "$pane" @claude_bg 2>/dev/null
-  tmux set-option -uw -t "$pane" @agent_transcript 2>/dev/null
+  # @agent_transcript is deliberately kept: the transcript file outlives the
+  # session, so prefix-R can still open the last reply after /exit.
 }
 
 # current subagent depth, sanitised to a non-negative integer
