@@ -48,7 +48,9 @@ So the primary path reads the transcript and never cleans anything.
   `❯` → `> `; edge bars stripped; all of it outside fences only.
 - `clip-reader` — `pbpaste | reader-clean | reader-render`, with a
   notification when the clipboard is empty or pandoc is missing.
-- `codex-tmux-hook` — Codex Stop hook (template in `codex/hooks.example.json`).
+- `codex-tmux-hook` — Codex Stop hook, wired by `codex/hooks.json`, which
+  `symlink-setup.sh` links to `~/.codex/hooks.json` (live-synced, like
+  `.tmux.conf`; `config.toml` stays per-machine and untouched).
 
 ## Wiring
 

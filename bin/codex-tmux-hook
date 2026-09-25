@@ -2,7 +2,7 @@
 # codex-tmux-hook — Codex Stop hook: record the session transcript on the tmux
 # window so `prefix R` can open the last reply as a reader page.
 #
-# Wire it in ~/.codex/hooks.json (see codex/hooks.example.json):
+# Wired by codex/hooks.json, which symlink-setup.sh links to ~/.codex/hooks.json:
 #   {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"~/bin/codex-tmux-hook","timeout":5}]}]}}
 # Codex sends JSON on stdin with session_id, transcript_path (the
 # ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<id>.jsonl file) and
