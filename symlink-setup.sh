@@ -25,15 +25,19 @@ link_into() {
   fi
   if [ -e "$target" ] || [ -L "$target" ]; then
     rel=${target#"$HOME"/}
-    mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
-    mv "$target" "$BACKUP_DIR/$rel"
+    if ! mkdir -p "$BACKUP_DIR/$(dirname "$rel")" || ! mv "$target" "$BACKUP_DIR/$rel"; then
+      echo "  FAIL  $label (could not move the existing one aside; left as is)"
+      return 1
+    fi
     moved=$((moved + 1))
-    echo "  MOVED $label (was a real file/dir — kept at ~/.dotfiles-backup/${BACKUP_DIR##*/}/$rel)"
+    echo "  MOVED $label (was not our link — kept at ~/.dotfiles-backup/${BACKUP_DIR##*/}/$rel)"
   else
     echo "  LINK  $label"
   fi
-  mkdir -p "$(dirname "$target")"
-  ln -s "$source" "$target"
+  if ! mkdir -p "$(dirname "$target")" || ! ln -s "$source" "$target"; then
+    echo "  FAIL  $label (could not create the link)"
+    return 1
+  fi
 }
 
 echo "Symlinking dotfiles from $DOTFILES_DIR to $HOME"
@@ -107,13 +111,20 @@ elif [ -e "$target" ]; then
       rel=${target#"$HOME"/}
       mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
       cp "$target" "$BACKUP_DIR/$rel"
-      # append the template's entries for each missing event; everything else
-      # in the file (permissions, env, other hooks) is untouched.
+      # For each missing event append only the template entries whose commands
+      # are claude-tmux-state ones (the template also carries other hooks that
+      # are not this script's business), skipping any command already present.
+      # Everything else in the file (permissions, env, other hooks) is kept;
+      # jq re-serialises it, so indentation may change.
       if merged=$(jq --slurpfile t "$example" --arg evs "$missing" '
             ($evs | split(" ") | map(select(. != ""))) as $missing
             | .hooks = ((.hooks // {}) as $h
                 | reduce $missing[] as $ev ($h;
-                    .[$ev] = ((.[$ev] // []) + $t[0].hooks[$ev])))' "$target") \
+                    ([.[$ev][]?.hooks[]?.command]) as $have
+                    | ($t[0].hooks[$ev] // [] | map(
+                        .hooks |= map(select((.command | test("claude-tmux-state")) and (.command as $c | $have | index($c) | not)))
+                      ) | map(select(.hooks | length > 0))) as $add
+                    | .[$ev] = ((.[$ev] // []) + $add)))' "$target") \
          && [ -n "$merged" ] && printf '%s\n' "$merged" > "$target"; then
         echo "  MERGE ~/.claude/settings.json ← claude-tmux-state hooks for:$missing (previous copy in ~/.dotfiles-backup/${BACKUP_DIR##*/}/)"
       else

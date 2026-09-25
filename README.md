@@ -64,7 +64,7 @@ What each kind of change needs (this is what the command decides for you):
 | a script in `bin/` | nothing — `~/bin` is a link to the directory |
 | a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
 | `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
-| `claude/settings.example.json` | `./symlink-setup.sh` merges any missing `claude-tmux-state` hook entries into `~/.claude/settings.json` (rest of the file untouched) |
+| `claude/settings.example.json` | `./symlink-setup.sh` merges only the missing `claude-tmux-state` hook entries into `~/.claude/settings.json` (nothing else added or removed; jq rewrites the file, so indentation may change) |
 | `brew.sh` / `brew-cask.sh` | re-run the script |
 | `.macos` | `sh .macos` (the updater runs it; asks for your password once, restarts Finder/Dock) |
 
