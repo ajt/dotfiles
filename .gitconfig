@@ -73,13 +73,6 @@
 [help]
 	autocorrect = 1
 
-[url "git@github.com:"]
-	insteadOf = https://github.com/
-	pushInsteadOf = "https://github.com/"
-
-[url "git@github.com:ajt/"]
-	insteadOf = "git://github.com/ajt/"
-
 [include]
 	# machine-specific: credentials, tokens, signing
 	path = ~/.gitconfig.local
