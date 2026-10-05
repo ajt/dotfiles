@@ -10,7 +10,7 @@
   var DEFAULTS = {
     fontSize: 25, lineHeight: 1.6, letterSpacing: 0, maxWidth: 1200, textAlign: 'left',
     outline: true, showVideo: true, showPhoto: true, bionic: false,
-    fontFamily: 'monospace', codeStyle: 'subtle', followSystem: false, theme: 'default',
+    fontFamily: 'monospace', codeStyle: 'subtle', wrapCode: false, followSystem: false, theme: 'default',
     rememberPosition: true, showDial: true,
     highlightEnabled: true, showHighlights: true, showMarks: true,
     rsvpWpm: 320, rsvpWords: 1, rsvpFontSize: 64, rsvpFont: 'serif', rsvpTheme: 'dark',
@@ -63,7 +63,29 @@
   content.querySelectorAll('table').forEach(function (t) {
     var w = el('div', 'table-wrap'); t.parentNode.insertBefore(w, t); w.appendChild(t);
   });
+  // every code block gets a wrap/unwrap button in its corner. The label is CSS
+  // ::after text, so the button adds no text to the content (highlight offsets
+  // and the speed reader's word count stay the same).
+  content.querySelectorAll('pre').forEach(function (pre, i) {
+    var w = el('div', 'code-block'); w.setAttribute('data-i', i);
+    pre.parentNode.insertBefore(w, pre); w.appendChild(pre);
+    var b = el('button', 'wrap-btn'); b.type = 'button'; b.setAttribute('aria-label', 'Toggle line wrapping'); b.title = 'Wrap long lines';
+    w.appendChild(b);
+  });
   var ORIGINAL = content.innerHTML;
+  var wrapOverride = {}; // code block index -> true (wrap) / false (no wrap), set by its button
+  function applyWrapOverrides() {
+    content.querySelectorAll('.code-block').forEach(function (w) {
+      var o = wrapOverride[w.getAttribute('data-i')];
+      w.classList.toggle('wrap', o === true); w.classList.toggle('nowrap', o === false);
+    });
+  }
+  content.addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('.wrap-btn'); if (!b) return;
+    var w = b.parentNode, i = w.getAttribute('data-i');
+    var wrapped = w.classList.contains('wrap') || (S.wrapCode && !w.classList.contains('nowrap'));
+    wrapOverride[i] = !wrapped; applyWrapOverrides();
+  });
   var words = (content.innerText || content.textContent).trim().split(/\s+/).filter(Boolean).length;
   var minutes = Math.max(1, Math.ceil(words / WPM));
   var ICON = {
@@ -107,6 +129,7 @@
     root.style.setProperty('--font-family', FONTS[S.fontFamily] || S.fontFamily);
     root.setAttribute('data-theme', resolveTheme());
     root.setAttribute('data-code', S.codeStyle);
+    root.classList.toggle('wrap-code', !!S.wrapCode);
     root.style.setProperty('--rsvp-size', S.rsvpFontSize + 'px');
     root.style.setProperty('--rsvp-font', S.rsvpFont === 'page' ? 'var(--font-family)' : (FONTS[S.rsvpFont] || FONTS.serif));
     root.setAttribute('data-rsvp-theme', S.rsvpTheme);
@@ -127,6 +150,7 @@
   function set(key, val) {
     S[key] = val; put(KEY, S);
     if (key === 'bionic') rebuild();
+    if (key === 'wrapCode') { wrapOverride = {}; applyWrapOverrides(); }
     apply();
   }
   darkMedia.addEventListener('change', apply);
@@ -179,6 +203,7 @@
     content.innerHTML = ORIGINAL;
     if (S.bionic) bionify(content);
     applyHighlights();
+    applyWrapOverrides();
     buildOutline();
     drawMarks();
   }
@@ -489,6 +514,7 @@
     { type: 'toggle', key: 'bionic', label: 'Bionic Reading' },
     { type: 'select', key: 'fontFamily', label: 'Font Family', options: [['monospace', 'monospace'], ['sans-serif', 'sans-serif'], ['serif', 'serif'], ['system', 'system']] },
     { type: 'select', key: 'codeStyle', label: 'Inline Code', options: [['subtle', 'Subtle grey'], ['tinted', 'Tinted red'], ['bordered', 'Bordered grey'], ['outlined', 'Outlined red'], ['accent', 'Accent blue'], ['inverted', 'Inverted pill']] },
+    { type: 'toggle', key: 'wrapCode', label: 'Wrap code blocks' },
     { type: 'toggle', key: 'followSystem', label: 'Follow System Theme' },
     { type: 'select', key: 'theme', label: 'Theme', options: [['default', 'Default'], ['dark', 'Dark'], ['sepia', 'Sepia']] },
     { type: 'section', label: 'Reading settings' },
