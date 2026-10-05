@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # clip-reader — open the clipboard as a reader-view page in the browser.
 # The Finder Quick Action "Open in Reader" (services/) runs this, so it can be
-# bound to a global keyboard shortcut. For text copied out of a terminal it
-# runs `reader-clean` first (glyphs, borders, box tables -> Markdown). Inside
-# tmux, prefix-R (reader-last) is the lossless route for an agent's reply.
+# bound to a global keyboard shortcut. Text copied out of the Claude Code or
+# Codex TUI has lost its Markdown, so `reader-match` first looks the copied
+# text up in the recent transcripts and renders the original Markdown when it
+# finds it; otherwise `reader-clean` recovers what it can (glyphs, borders,
+# box tables -> Markdown). Inside tmux, prefix-R (reader-last) is the direct
+# lossless route for an agent's last reply.
 set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
@@ -14,7 +17,14 @@ if [ -z "${text//[[:space:]]/}" ]; then
   exit 0
 fi
 
-if ! out=$(printf '%s\n' "$text" | "$dir/reader-clean" | "$dir/reader-render" -t 'Clipboard' 2>&1); then
+if matched=$(printf '%s\n' "$text" | "$dir/reader-match" --label 2>/dev/null) && [ -n "$matched" ]; then
+  source=${matched%%$'\n'*}
+  md=${matched#*$'\n'}
+  out=$(printf '%s\n' "$md" | "$dir/reader-render" -t "$source" 2>&1)
+else
+  out=$(printf '%s\n' "$text" | "$dir/reader-clean" | "$dir/reader-render" -t 'Clipboard' 2>&1)
+fi
+if [ $? -ne 0 ]; then
   osascript -e "display notification \"${out//\"/}\" with title \"Open in Reader failed\"" 2>/dev/null
   exit 1
 fi

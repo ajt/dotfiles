@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""reader-match — find copied agent text in the transcripts, print its Markdown.
+
+    pbpaste | reader-match [--label] [--days N]
+
+Text copied out of the Claude Code or Codex TUI has lost its Markdown (bold
+and code spans are rendered, headings are just bold lines, tables are boxes).
+The original is still in the agent's JSONL transcript. This reads the copied
+text on stdin, normalises both it and every assistant text block in the recent
+transcripts (markup, glyphs, box characters and whitespace dropped, lowercase),
+and prints the original Markdown of the newest block that contains the copied
+text — or, failing that, the whole turn whose joined blocks contain it. Exit 1
+when nothing matches, so `clip-reader` falls back to `reader-clean`.
+
+  --label   print "Claude Code" or "Codex" on the first line before the Markdown
+  --days N  only look at transcripts modified in the last N days (default 30)
+"""
+import argparse
+import glob
+import importlib.machinery
+import importlib.util
+import os
+import re
+import sys
+import time
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+# reader-last has no .py suffix, so name the loader explicitly
+_loader = importlib.machinery.SourceFileLoader("reader_last", os.path.join(HERE, "reader-last"))
+_spec = importlib.util.spec_from_loader("reader_last", _loader)
+reader_last = importlib.util.module_from_spec(_spec)
+_loader.exec_module(reader_last)
+
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[@-Z\\-_]")
+GLYPHS = "*_`~>#|│┃⏺⎿❯•◦▪─━┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪═╒╕╘╛╟╢╤╧╫"
+
+
+def norm(s):
+    s = ANSI.sub("", s)
+    s = re.sub(r"^\s*(```|~~~).*$", "", s, flags=re.M)          # fence lines
+    s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)             # [text](url) -> text
+    s = re.sub(r"<(https?://[^>]+)>", r"\1", s)                # <url> -> url
+    s = re.sub(r"^\s*(?:[-+*]|\d+[.)])\s+", "", s, flags=re.M)  # list markers
+    s = re.sub(r"-{3,}", "", s)                                 # rules, table separators
+    s = s.translate({ord(c): None for c in GLYPHS})
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def claude_blocks(recs):
+    """Yield (turn_blocks) lists for a Claude Code transcript, oldest first."""
+    cur = []
+    for r in recs:
+        if r.get("isSidechain") or r.get("isMeta"):
+            continue
+        t, content = r.get("type"), (r.get("message") or {}).get("content")
+        if t == "user":
+            is_prompt = isinstance(content, str) or (
+                isinstance(content, list)
+                and any(isinstance(c, dict) and c.get("type") == "text" for c in content)
+                and not any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content)
+            )
+            if is_prompt and cur:
+                yield cur
+                cur = []
+        elif t == "assistant" and isinstance(content, list) and not r.get("isApiErrorMessage"):
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "text" and c.get("text", "").strip():
+                    cur.append(c["text"])
+    if cur:
+        yield cur
+
+
+def codex_blocks(recs):
+    cur = []
+    for r in recs:
+        if r.get("type") != "response_item":
+            continue
+        p = r.get("payload") or {}
+        if p.get("type") != "message":
+            continue
+        if p.get("role") == "user":
+            if cur:
+                yield cur
+            cur = []
+        elif p.get("role") == "assistant":
+            text = "".join(c.get("text", "") for c in p.get("content") or []
+                           if isinstance(c, dict) and c.get("type") == "output_text")
+            if text.strip():
+                cur.append(text)
+    if cur:
+        yield cur
+
+
+def transcripts(days):
+    home = os.path.expanduser("~")
+    paths = glob.glob(os.path.join(home, ".claude", "projects", "*", "*.jsonl"))
+    paths += glob.glob(os.path.join(home, ".codex", "sessions", "*", "*", "*", "rollout-*.jsonl"))
+    cutoff = time.time() - days * 86400
+    stamped = []
+    for p in paths:
+        try:
+            m = os.path.getmtime(p)
+        except OSError:
+            continue
+        if m >= cutoff:
+            stamped.append((m, p))
+    return [p for _, p in sorted(stamped, reverse=True)]
+
+
+def find(needles, days):
+    for path in transcripts(days):
+        kind = reader_last.detect(path)
+        gen = codex_blocks if kind == "codex" else claude_blocks
+        label = "Codex" if kind == "codex" else "Claude Code"
+        turns = list(gen(reader_last.records(path)))
+        for blocks in reversed(turns):
+            for b in reversed(blocks):
+                nb = norm(b)
+                if any(n in nb for n in needles):
+                    return label, b
+            joined = "\n\n".join(blocks)
+            if len(blocks) > 1 and any(n in norm(joined) for n in needles):
+                return label, joined
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--label", action="store_true")
+    ap.add_argument("--days", type=int, default=30)
+    a = ap.parse_args()
+
+    clip = norm(sys.stdin.read())
+    if len(clip) < 24:
+        sys.stderr.write("reader-match: copied text too short to match\n")
+        return 1
+    # the exact copy first; then with a ragged first/last line trimmed (a
+    # stray prompt line or a half-selected first line)
+    needles = [clip]
+    core = clip[60:-60]
+    if len(core) >= 40:
+        needles.append(core)
+
+    hit = find(needles, a.days)
+    if not hit:
+        sys.stderr.write("reader-match: no transcript contains the copied text\n")
+        return 1
+    label, md = hit
+    if a.label:
+        sys.stdout.write(label + "\n")
+    sys.stdout.write(md.rstrip() + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

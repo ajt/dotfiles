@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$pagetitle$</title>
+$for(header-includes)$
+$header-includes$
+$endfor$
+</head>
+<body data-doc="$dochash$" data-source="$source$" data-rendered="$rendered$">
+<a id="top"></a>
+<nav id="outline" aria-label="Outline">
+  <div class="outline-title">Outline</div>
+  <a class="outline-top" href="#top">Back to Top</a>
+  <ol id="outline-list"></ol>
+</nav>
+<main id="page">
+  <article id="article">
+    <header id="head"><div id="meta"></div></header>
+    <div id="content">
+$body$
+    </div>
+  </article>
+</main>
+<aside id="tools" aria-label="Reader tools"></aside>
+<aside id="panel" aria-label="Style settings"></aside>
+<div id="marks" aria-hidden="true"></div>
+<div id="hl-pop"></div>
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>

@@ -11,7 +11,7 @@ My macOS dotfiles. Originally forked from [paulirish/dotfiles](https://github.co
 - **Homebrew** formulae and casks
 - **macOS** defaults (curated, not the 500-line kitchen sink)
 - **Finder Quick Actions** (`services/`) — e.g. right-click → Copy Path, Open in Reader
-- **Agent reader view** — `prefix R` in tmux opens Claude Code's or Codex's last reply as a clean HTML page (`bin/reader-*`)
+- **Agent reader view** — `prefix R` in tmux (or the *Open in Reader* Quick Action on copied text) opens Claude Code's or Codex's last reply as a Clearly-style HTML page with a persistent Style panel, highlights and a SwiftRead-style speed reader (`bin/reader-*`; guide: [`docs/reader-view.md`](docs/reader-view.md))
 - Shell **aliases**, **exports**, and **functions**
 
 ## New machine setup

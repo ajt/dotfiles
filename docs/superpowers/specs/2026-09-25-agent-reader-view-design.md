@@ -86,3 +86,100 @@ So the primary path reads the transcript and never cleans anything.
 - `reader-clean`'s Codex rule-table branch is built from Codex's renderer
   constants (`TABLE_HEADER_SEPARATOR_CHAR = '━'`, gap 2, padding 1), not from
   a live copy. Check one real table.
+
+## Page styling and the Style panel (2026-10-05)
+
+The rendered page now mimics the Clearly Reader extension: a white article
+card (`max-width` 1200px) on a grey page, monospace body at 25px / 1.6, bold
+monospace headings, a grey meta line (source · reading time · word count ·
+render time), an outline in the left gutter, and a right rail with an `Aa`
+button that opens a Style panel, a fullscreen button and a reading-time dial
+that fills as you scroll. The pieces live in `bin/reader-view/`:
+
+- `template.html` — the pandoc template (page skeleton; `$body$` goes into
+  `#content`, a leading `<h1>` is promoted to the document title).
+- `style.css` — layout and the three themes (`default`, `dark`, `sepia`),
+  driven by CSS custom properties the panel sets.
+- `app.js` — the panel, outline, dial, reading position, bionic reading and
+  highlights. Included at the end of `<body>` via pandoc `-A`.
+
+`reader-render` passes the content hash (`-V dochash`), the `-t` title as the
+source (`-M source`) and the render time; `-t` now also feeds the meta line,
+so the tmux binding passes `-t "Agent reply"` and `clip-reader` `-t Clipboard`.
+
+### Settings (persisted in `localStorage`, key `reader.settings`)
+
+Every file:// page shares one origin in Chrome and Safari, so a change made on
+one rendered reply applies to the next. Mirrors Clearly's panel: Font Size,
+Line Height, Letter Spacing, Max Width (steppers); Text Align; Outline, Show
+Video, Show Photo, Bionic Reading (toggles); Font Family (monospace /
+sans-serif / serif / system); Follow System Theme; Theme (Default / Dark /
+Sepia); Inline Code (subtle grey / tinted red / bordered grey / outlined red
+/ accent blue / inverted pill, via `[data-code]` with per-theme tint colours);
+Remember reading position; Show reading time dial; Enable
+Highlighting; Show highlights on page; Show highlight page marks. Keyboard:
+`s` toggles the panel, `f` fullscreen, `Esc` closes.
+
+Per-machine defaults: `~/.config/reader/settings.json` (or `$READER_SETTINGS`)
+is validated and embedded as `window.READER_DEFAULTS`; the panel's "Show
+settings JSON" button prints the current settings to save there. Precedence:
+built-in defaults < seed file < localStorage. "Reset to defaults" resets to
+the seed.
+
+Reading position (`reader.pos.<hash>`) and highlights (`reader.hl.<hash>`) are
+keyed by the SHA-1 of the Markdown, so re-rendering the same reply finds them.
+Highlights are stored as character offsets into `#content`'s text, which is
+stable across bionic on/off; page marks are one tick per highlight in a fixed
+track at the right edge. Select text to get a "Highlight" popover; click a
+highlight for "Remove highlight".
+
+Not mirrored: Clearly's Layout dropdown (locked in the screenshot; Max Width
+covers it), Auto Spacing (CJK/Latin spacing, no use here), AI/speech/translate.
+
+## Clipboard lookup in the transcripts (2026-10-05)
+
+Text copied out of the TUI has lost its Markdown, and `reader-clean` can only
+recover structure, not bold or code spans. `clip-reader` now tries
+`bin/reader-match` first: it normalises the copied text and every assistant
+text block in the transcripts modified in the last 30 days (newest first;
+markup, glyphs, box characters and whitespace dropped, lowercase) and prints
+the original Markdown of the newest block containing the copy — or the whole
+turn when the copy spans several blocks. A ragged first/last line is tolerated
+by also trying the copy with 60 characters trimmed at each end. `--label`
+prefixes the output with "Claude Code" or "Codex", which `clip-reader` passes
+to `reader-render -t` so the meta line names the source. No match → exit 1 →
+the `reader-clean` fallback as before (source "Clipboard"). It imports
+`reader-last` for the JSONL reader and format detection.
+
+## Speed reading (2026-10-05)
+
+An RSVP overlay after SwiftRead (rapid serial visual presentation: one chunk
+at a time at a fixed point). The rail's bolt button or `r` opens it starting
+at the first block in view; `Esc` (or `r`) closes it and jumps the page to the
+block you stopped in, outlined for a moment, so the normal reading-position
+memory resumes there next time.
+
+- **Display.** Serif word centred on a dark field; the focus letter (optimal
+  recognition point: index 0/1/2/3/4 for lengths 1/2-5/6-9/10-13/14+) is
+  tinted red with a tick above and below. Inline code is shown whole, in mono.
+  A multi-line code block or table becomes a *slide*: the reader pauses and
+  shows it until you press space or Continue ("Pause and show code blocks";
+  off = skipped). Progress bar, "n / total · m:ss left" and the wpm label.
+- **Controls.** −10 / previous sentence / play-pause / next sentence / +10,
+  as in SwiftRead; keys space, ←/→, ↑/↓ (or +/−), Esc; click the stage to
+  pause.
+- **Timing.** Base dwell 60000/wpm per word (a chunk of N words dwells N×),
+  then micro-pauses: long words (≥9 chars) ×1.3, numbers ×1.4, clause
+  punctuation ×1.5, sentence end ×2, paragraph end ×2 / heading ×2.5, inline
+  code + min(len,48)/16 words. Chunks never cross a sentence or clause end, an
+  inline code span, or a block boundary.
+- **Settings** (panel section "Speed reading", persisted like the rest):
+  Speed 100–1200 wpm step 10 (default 320), Words at a time 1–3, Font size,
+  Font (serif / sans-serif / monospace / same as page), Theme (Dark / Light /
+  Same as page), Focus marks, Focus letter, Pause on long words / numbers /
+  punctuation / paragraphs, Pause and show code blocks. Changing a setting
+  mid-read rebuilds the chunks at the same block; the panel sits above the
+  overlay.
+
+Left out on purpose: text-to-speech, SwiftRead's Warm/Calm/Matrix themes and
+the pixel-based Focus Span.
