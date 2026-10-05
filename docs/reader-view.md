@@ -76,6 +76,7 @@ reply applies to every page after it.
 | Bionic Reading | bold the first part of each word |
 | Font Family | monospace, sans-serif, serif, system |
 | Inline Code | subtle grey, tinted red, bordered grey, outlined red, accent blue, inverted pill |
+| Wrap code blocks | wrap long lines in code blocks to the column instead of scrolling sideways; every code block also has a small *wrap* / *unwrap* button in its bottom-right corner that overrides this for that block (for long text output that is not really code) |
 | Follow System Theme | dark when macOS is dark |
 | Theme | Default, Dark, Sepia |
 | Remember reading position | return to where you were on the same document |
