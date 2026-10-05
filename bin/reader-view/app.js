@@ -10,7 +10,7 @@
   var DEFAULTS = {
     fontSize: 25, lineHeight: 1.6, letterSpacing: 0, maxWidth: 1200, textAlign: 'left',
     outline: true, showVideo: true, showPhoto: true, bionic: false,
-    fontFamily: 'monospace', followSystem: false, theme: 'default',
+    fontFamily: 'monospace', codeStyle: 'subtle', followSystem: false, theme: 'default',
     rememberPosition: true, showDial: true,
     highlightEnabled: true, showHighlights: true, showMarks: true
   };
@@ -97,6 +97,7 @@
     root.style.setProperty('--text-align', S.textAlign);
     root.style.setProperty('--font-family', FONTS[S.fontFamily] || S.fontFamily);
     root.setAttribute('data-theme', resolveTheme());
+    root.setAttribute('data-code', S.codeStyle);
     root.classList.toggle('no-outline', !S.outline);
     root.classList.toggle('no-photo', !S.showPhoto);
     root.classList.toggle('no-video', !S.showVideo);
@@ -296,6 +297,7 @@
     { type: 'toggle', key: 'showPhoto', label: 'Show Photo' },
     { type: 'toggle', key: 'bionic', label: 'Bionic Reading' },
     { type: 'select', key: 'fontFamily', label: 'Font Family', options: [['monospace', 'monospace'], ['sans-serif', 'sans-serif'], ['serif', 'serif'], ['system', 'system']] },
+    { type: 'select', key: 'codeStyle', label: 'Inline Code', options: [['subtle', 'Subtle grey'], ['tinted', 'Tinted red'], ['bordered', 'Bordered grey'], ['outlined', 'Outlined red'], ['accent', 'Accent blue'], ['inverted', 'Inverted pill']] },
     { type: 'toggle', key: 'followSystem', label: 'Follow System Theme' },
     { type: 'select', key: 'theme', label: 'Theme', options: [['default', 'Default'], ['dark', 'Dark'], ['sepia', 'Sepia']] },
     { type: 'section', label: 'Reading settings' },

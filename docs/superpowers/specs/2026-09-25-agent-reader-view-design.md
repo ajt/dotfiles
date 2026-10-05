@@ -114,7 +114,9 @@ one rendered reply applies to the next. Mirrors Clearly's panel: Font Size,
 Line Height, Letter Spacing, Max Width (steppers); Text Align; Outline, Show
 Video, Show Photo, Bionic Reading (toggles); Font Family (monospace /
 sans-serif / serif / system); Follow System Theme; Theme (Default / Dark /
-Sepia); Remember reading position; Show reading time dial; Enable
+Sepia); Inline Code (subtle grey / tinted red / bordered grey / outlined red
+/ accent blue / inverted pill, via `[data-code]` with per-theme tint colours);
+Remember reading position; Show reading time dial; Enable
 Highlighting; Show highlights on page; Show highlight page marks. Keyboard:
 `s` toggles the panel, `f` fullscreen, `Esc` closes.
 

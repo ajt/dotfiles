@@ -9,16 +9,19 @@
   --page: #ebebeb; --card: #ffffff; --fg: #1b1b1b; --muted: #818181; --rule: #e6e6e6;
   --code-bg: #f5f5f5; --link: #1b4fd6; --mark: #fff2a8; --panel: #ffffff; --ctl: #f1f1f1;
   --on: #1b1b1b; --knob: #ffffff; --tick: #f0b400; --shadow: rgba(0, 0, 0, 0.08);
+  --code-tint-fg: #b3243c; --code-tint-bg: #fdeef1; --code-tint-rule: #f3c9d2;
 }
 :root[data-theme="dark"] {
   --page: #111111; --card: #1c1c1c; --fg: #e6e6e6; --muted: #9a9a9a; --rule: #333333;
   --code-bg: #262626; --link: #7fb2f0; --mark: #6b5a12; --panel: #1c1c1c; --ctl: #2a2a2a;
   --on: #e6e6e6; --knob: #1c1c1c; --tick: #e0b000; --shadow: rgba(0, 0, 0, 0.5);
+  --code-tint-fg: #ff8ba0; --code-tint-bg: #3a1f26; --code-tint-rule: #5a2f3a;
 }
 :root[data-theme="sepia"] {
   --page: #e6dcc3; --card: #f8f1e1; --fg: #4b3d2a; --muted: #8a7a60; --rule: #e2d7bf;
   --code-bg: #efe6d2; --link: #1e5aa8; --mark: #f3d879; --panel: #f8f1e1; --ctl: #ece3cf;
   --on: #4b3d2a; --knob: #f8f1e1; --tick: #c99700; --shadow: rgba(60, 40, 0, 0.1);
+  --code-tint-fg: #9a3b2e; --code-tint-bg: #f3e0d2; --code-tint-rule: #e2c4b0;
 }
 
 * { box-sizing: border-box; }
@@ -61,6 +64,13 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 2.2em 0; }
 blockquote { margin-left: 0; padding-left: 1em; border-left: 3px solid var(--rule); color: var(--muted); }
 code, pre, kbd, samp { font-family: var(--mono); font-size: 0.85em; }
 code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+/* inline code looks — the Style panel's "Inline Code" dropdown sets [data-code] */
+#content :not(pre) > code { transition: background 0.15s, color 0.15s; }
+:root[data-code="tinted"] #content :not(pre) > code { color: var(--code-tint-fg); background: var(--code-tint-bg); }
+:root[data-code="bordered"] #content :not(pre) > code { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 5px; padding: 0.05em 0.4em; }
+:root[data-code="outlined"] #content :not(pre) > code { color: var(--code-tint-fg); background: var(--code-tint-bg); border: 1px solid var(--code-tint-rule); border-radius: 5px; padding: 0.05em 0.4em; }
+:root[data-code="accent"] #content :not(pre) > code { color: var(--link); background: color-mix(in srgb, var(--link) 11%, transparent); }
+:root[data-code="inverted"] #content :not(pre) > code { background: var(--fg); color: var(--card); padding: 0.1em 0.45em; border-radius: 5px; }
 pre {
   background: var(--code-bg); padding: 1em 1.2em; border-radius: 8px; overflow-x: auto;
   line-height: 1.5; letter-spacing: 0; text-align: left;
