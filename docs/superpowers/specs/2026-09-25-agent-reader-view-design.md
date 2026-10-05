@@ -86,3 +86,50 @@ So the primary path reads the transcript and never cleans anything.
 - `reader-clean`'s Codex rule-table branch is built from Codex's renderer
   constants (`TABLE_HEADER_SEPARATOR_CHAR = '━'`, gap 2, padding 1), not from
   a live copy. Check one real table.
+
+## Page styling and the Style panel (2026-10-05)
+
+The rendered page now mimics the Clearly Reader extension: a white article
+card (`max-width` 1200px) on a grey page, monospace body at 25px / 1.6, bold
+monospace headings, a grey meta line (source · reading time · word count ·
+render time), an outline in the left gutter, and a right rail with an `Aa`
+button that opens a Style panel, a fullscreen button and a reading-time dial
+that fills as you scroll. The pieces live in `bin/reader-view/`:
+
+- `template.html` — the pandoc template (page skeleton; `$body$` goes into
+  `#content`, a leading `<h1>` is promoted to the document title).
+- `style.css` — layout and the three themes (`default`, `dark`, `sepia`),
+  driven by CSS custom properties the panel sets.
+- `app.js` — the panel, outline, dial, reading position, bionic reading and
+  highlights. Included at the end of `<body>` via pandoc `-A`.
+
+`reader-render` passes the content hash (`-V dochash`), the `-t` title as the
+source (`-M source`) and the render time; `-t` now also feeds the meta line,
+so the tmux binding passes `-t "Agent reply"` and `clip-reader` `-t Clipboard`.
+
+### Settings (persisted in `localStorage`, key `reader.settings`)
+
+Every file:// page shares one origin in Chrome and Safari, so a change made on
+one rendered reply applies to the next. Mirrors Clearly's panel: Font Size,
+Line Height, Letter Spacing, Max Width (steppers); Text Align; Outline, Show
+Video, Show Photo, Bionic Reading (toggles); Font Family (monospace /
+sans-serif / serif / system); Follow System Theme; Theme (Default / Dark /
+Sepia); Remember reading position; Show reading time dial; Enable
+Highlighting; Show highlights on page; Show highlight page marks. Keyboard:
+`s` toggles the panel, `f` fullscreen, `Esc` closes.
+
+Per-machine defaults: `~/.config/reader/settings.json` (or `$READER_SETTINGS`)
+is validated and embedded as `window.READER_DEFAULTS`; the panel's "Show
+settings JSON" button prints the current settings to save there. Precedence:
+built-in defaults < seed file < localStorage. "Reset to defaults" resets to
+the seed.
+
+Reading position (`reader.pos.<hash>`) and highlights (`reader.hl.<hash>`) are
+keyed by the SHA-1 of the Markdown, so re-rendering the same reply finds them.
+Highlights are stored as character offsets into `#content`'s text, which is
+stable across bionic on/off; page marks are one tick per highlight in a fixed
+track at the right edge. Select text to get a "Highlight" popover; click a
+highlight for "Remove highlight".
+
+Not mirrored: Clearly's Layout dropdown (locked in the screenshot; Max Width
+covers it), Auto Spacing (CJK/Latin spacing, no use here), AI/speech/translate.
