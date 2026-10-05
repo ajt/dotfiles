@@ -61,6 +61,7 @@ What each kind of change needs (this is what the command decides for you):
 |---|---|
 | `.zshrc`, `.aliases`, `.exports`, `.functions`, `.vimrc`, `.gitconfig` | nothing — open a new shell |
 | `.tmux.conf` | `prefix r` (reload), or restart the tmux server |
+| `~/.extra` (yours, not in the repo) | open a new shell; for `TMUX_NEW_WINDOW_DIR`, restart the tmux server |
 | a script in `bin/` | nothing — `~/bin` is a link to the directory |
 | a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
 | `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
@@ -103,6 +104,7 @@ Plugins are sourced explicitly in `.zshrc` — no plugin manager.
 
 Machine-specific config goes in these files (gitignored):
 
-- `~/.extra` — secret env vars, PATH additions
+- `~/.extra` — secret env vars, PATH additions, and per-machine knobs:
+  - `export TMUX_NEW_WINDOW_DIR="$HOME/Projects"` — where `prefix c` opens a new tmux window (default: `$HOME`; splits always keep the current pane's directory). tmux reads it when the server starts, so restart tmux after changing it. A directory that does not exist falls back to `$HOME`.
 - `~/.gitconfig.local` — git credentials, signing key
 - `~/.ssh/config` — SSH hosts

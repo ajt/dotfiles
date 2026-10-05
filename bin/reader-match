@@ -24,6 +24,8 @@ import re
 import sys
 import time
 
+sys.dont_write_bytecode = True  # loading reader-last below must not litter ~/bin with __pycache__
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 # reader-last has no .py suffix, so name the loader explicitly
 _loader = importlib.machinery.SourceFileLoader("reader_last", os.path.join(HERE, "reader-last"))
