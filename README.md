@@ -105,6 +105,12 @@ Plugins are sourced explicitly in `.zshrc` — no plugin manager.
 Machine-specific config goes in these files (gitignored):
 
 - `~/.extra` — secret env vars, PATH additions, and per-machine knobs:
-  - `export TMUX_NEW_WINDOW_DIR="$HOME/Projects"` — where `prefix c` opens a new tmux window (default: `$HOME`; splits always keep the current pane's directory). tmux reads it when the server starts, so restart tmux after changing it. A directory that does not exist falls back to `$HOME`.
+  - `export TMUX_NEW_WINDOW_DIR="$HOME/Projects"` — where `prefix c` opens a new tmux window (default: `$HOME`; splits always keep the current pane's directory). tmux reads it when the server starts, so restart tmux after changing it. Use `$HOME`, not a quoted `~`; a directory that does not exist falls back to `$HOME`.
+
+New shells and tmux windows never start inside a Python virtualenv, even when
+tmux was launched from one: `.tmux.conf` removes `VIRTUAL_ENV` from the
+server's environment and `.zshrc` drops an inherited one. Activate a venv in
+the shell that needs it, or use `uv run`. (Only `VIRTUAL_ENV`-style venvs are
+covered; conda's `CONDA_PREFIX` is left alone.)
 - `~/.gitconfig.local` — git credentials, signing key
 - `~/.ssh/config` — SSH hosts
