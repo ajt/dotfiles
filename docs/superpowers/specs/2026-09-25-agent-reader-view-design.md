@@ -133,3 +133,18 @@ highlight for "Remove highlight".
 
 Not mirrored: Clearly's Layout dropdown (locked in the screenshot; Max Width
 covers it), Auto Spacing (CJK/Latin spacing, no use here), AI/speech/translate.
+
+## Clipboard lookup in the transcripts (2026-10-05)
+
+Text copied out of the TUI has lost its Markdown, and `reader-clean` can only
+recover structure, not bold or code spans. `clip-reader` now tries
+`bin/reader-match` first: it normalises the copied text and every assistant
+text block in the transcripts modified in the last 30 days (newest first;
+markup, glyphs, box characters and whitespace dropped, lowercase) and prints
+the original Markdown of the newest block containing the copy — or the whole
+turn when the copy spans several blocks. A ragged first/last line is tolerated
+by also trying the copy with 60 characters trimmed at each end. `--label`
+prefixes the output with "Claude Code" or "Codex", which `clip-reader` passes
+to `reader-render -t` so the meta line names the source. No match → exit 1 →
+the `reader-clean` fallback as before (source "Clipboard"). It imports
+`reader-last` for the JSONL reader and format detection.
