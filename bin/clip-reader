@@ -9,6 +9,13 @@
 # lossless route for an agent's last reply.
 set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Automator runs this with no locale set, and pbpaste then writes every
+# non-ASCII character as "?" (box-table borders, ⏺, ❯ ...), so reader-clean
+# never sees a table. Force UTF-8 unless the caller already has one.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+  *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) ;;
+  *) export LC_ALL=en_US.UTF-8 ;;
+esac
 dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
 
 text=$(pbpaste 2>/dev/null)
