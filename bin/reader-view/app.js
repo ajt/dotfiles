@@ -325,17 +325,21 @@
 
     function tokens() {
       // walk the content's block elements; code blocks and tables become slides
-      var out = [], blocks = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, .table-wrap, dt, dd');
+      var BLOCKS = 'p, h1, h2, h3, h4, h5, h6, li, pre, .table-wrap, dt, dd';
+      var out = [], blocks = content.querySelectorAll(BLOCKS);
       blocks.forEach(function (b) {
         if (b.closest('pre, .table-wrap') && !(b.tagName === 'PRE' || b.classList.contains('table-wrap'))) return;
-        if (b.tagName === 'LI' && b.querySelector('p')) return; // loose list: its <p>s are walked instead
         if (b.tagName === 'PRE' || b.classList.contains('table-wrap')) {
           if (S.rsvpShowCode) out.push({ slide: b, block: b });
           return;
         }
         var head = /^H[1-6]$/.test(b.tagName), words = [];
+        // only this block's own text: a tight nested list sits inside its parent <li>
+        // and a loose <li> wraps <p>s, and those blocks are walked on their own
         var w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
-          var p = n.parentElement; return p && p.closest('pre, .table-wrap, svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+          var p = n.parentElement;
+          if (!p || p.closest('svg')) return NodeFilter.FILTER_REJECT;
+          return p.closest(BLOCKS) === b ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; } });
         var n;
         while ((n = w.nextNode())) {
           var code = n.parentElement.closest('code');

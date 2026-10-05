@@ -42,6 +42,7 @@ for f in template.html style.css app.js; do
 done
 
 [ -n "$out" ] || out="/tmp/reader-$(date +%Y%m%d-%H%M%S).html"
+title=${title//\"/\'}   # pandoc -M escapes <>& but not a quote inside an attribute
 
 md=$(mktemp -t reader-md) && hdr=$(mktemp -t reader-hdr) && ftr=$(mktemp -t reader-ftr) || exit 1
 trap 'rm -f "$md" "$hdr" "$ftr"' EXIT
