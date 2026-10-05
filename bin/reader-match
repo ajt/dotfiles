@@ -9,8 +9,11 @@ The original is still in the agent's JSONL transcript. This reads the copied
 text on stdin, normalises both it and every assistant text block in the recent
 transcripts (markup, glyphs, box characters and whitespace dropped, lowercase),
 and prints the original Markdown of the newest block that contains the copied
-text — or, failing that, the whole turn whose joined blocks contain it. Exit 1
-when nothing matches, so `clip-reader` falls back to `reader-clean`.
+text — or, failing that, the whole turn whose joined blocks contain it. A copy
+the terminal damaged (a strip of columns missing from every line, a stray
+line) still matches when most of its lines' opening characters are found in
+one block. Exit 1 when nothing matches, so `clip-reader` falls back to
+`reader-clean`.
 
   --label   print "Claude Code" or "Codex" on the first line before the Markdown
   --days N  only look at transcripts modified in the last N days (default 30)
@@ -109,7 +112,32 @@ def transcripts(days):
     return [p for _, p in sorted(stamped, reverse=True)]
 
 
-def find(needles, days):
+LINE_MIN, LINE_PREFIX = 24, 40
+
+
+def line_needles(raw):
+    """The opening characters of each copied line, for a copy the terminal has
+    damaged. A mouse selection can lose a strip of columns from every line
+    (seen: 26 columns from column 67 of each row of a box table), which breaks
+    every whole-text needle at once; the start of each line survives."""
+    out = []
+    for ln in raw.split("\n"):
+        n = norm(ln)
+        if len(n) >= LINE_MIN:
+            out.append(n[:LINE_PREFIX])
+    return out
+
+
+def matches(nb, needles, parts):
+    if any(n in nb for n in needles):
+        return True
+    if len(parts) < 3:
+        return False
+    hits = sum(1 for p in parts if p in nb)
+    return hits >= 3 and hits * 10 >= len(parts) * 6  # at least 3 lines and 60 %
+
+
+def find(needles, parts, days):
     for path in transcripts(days):
         kind = reader_last.detect(path)
         gen = codex_blocks if kind == "codex" else claude_blocks
@@ -117,11 +145,10 @@ def find(needles, days):
         turns = list(gen(reader_last.records(path)))
         for blocks in reversed(turns):
             for b in reversed(blocks):
-                nb = norm(b)
-                if any(n in nb for n in needles):
+                if matches(norm(b), needles, parts):
                     return label, b
             joined = "\n\n".join(blocks)
-            if len(blocks) > 1 and any(n in norm(joined) for n in needles):
+            if len(blocks) > 1 and matches(norm(joined), needles, parts):
                 return label, joined
     return None
 
@@ -132,7 +159,8 @@ def main():
     ap.add_argument("--days", type=int, default=30)
     a = ap.parse_args()
 
-    clip = norm(sys.stdin.read())
+    raw = sys.stdin.read()
+    clip = norm(raw)
     if len(clip) < 24:
         sys.stderr.write("reader-match: copied text too short to match\n")
         return 1
@@ -143,7 +171,7 @@ def main():
     if len(core) >= 40:
         needles.append(core)
 
-    hit = find(needles, a.days)
+    hit = find(needles, line_needles(raw), a.days)
     if not hit:
         sys.stderr.write("reader-match: no transcript contains the copied text\n")
         return 1
