@@ -12,9 +12,13 @@
     outline: true, showVideo: true, showPhoto: true, bionic: false,
     fontFamily: 'monospace', codeStyle: 'subtle', followSystem: false, theme: 'default',
     rememberPosition: true, showDial: true,
-    highlightEnabled: true, showHighlights: true, showMarks: true
+    highlightEnabled: true, showHighlights: true, showMarks: true,
+    rsvpWpm: 320, rsvpWords: 1, rsvpFontSize: 64, rsvpFont: 'serif', rsvpTheme: 'dark',
+    rsvpFocusMarks: true, rsvpFocusLetter: true, rsvpPauseLong: true, rsvpPauseNumbers: true,
+    rsvpPausePunct: true, rsvpPauseParagraph: true, rsvpShowCode: true
   };
-  var LIMITS = { fontSize: [12, 48, 1], lineHeight: [1, 2.5, 0.1], letterSpacing: [-2, 6, 0.5], maxWidth: [560, 2200, 40] };
+  var LIMITS = { fontSize: [12, 48, 1], lineHeight: [1, 2.5, 0.1], letterSpacing: [-2, 6, 0.5], maxWidth: [560, 2200, 40],
+    rsvpWpm: [100, 1200, 10], rsvpWords: [1, 3, 1], rsvpFontSize: [24, 120, 4] };
   var FONTS = {
     monospace: 'ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace',
     'sans-serif': '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -67,7 +71,12 @@
     clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/></svg>',
     cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
-    full: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>'
+    full: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z" fill="currentColor" stroke="none"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></svg>',
+    fwd: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   meta.innerHTML =
@@ -98,6 +107,12 @@
     root.style.setProperty('--font-family', FONTS[S.fontFamily] || S.fontFamily);
     root.setAttribute('data-theme', resolveTheme());
     root.setAttribute('data-code', S.codeStyle);
+    root.style.setProperty('--rsvp-size', S.rsvpFontSize + 'px');
+    root.style.setProperty('--rsvp-font', S.rsvpFont === 'page' ? 'var(--font-family)' : (FONTS[S.rsvpFont] || FONTS.serif));
+    root.setAttribute('data-rsvp-theme', S.rsvpTheme);
+    root.classList.toggle('no-focus-marks', !S.rsvpFocusMarks);
+    root.classList.toggle('no-focus-letter', !S.rsvpFocusLetter);
+    if (rsvp.open) rsvp.refresh();
     root.classList.toggle('no-outline', !S.outline);
     root.classList.toggle('no-photo', !S.showPhoto);
     root.classList.toggle('no-video', !S.showVideo);
@@ -245,6 +260,7 @@
   tools.innerHTML =
     '<button type="button" id="btn-style" title="Style (s)" aria-label="Style settings">Aa</button>' +
     '<button type="button" id="btn-full" title="Fullscreen (f)" aria-label="Fullscreen">' + ICON.full + '</button>' +
+    '<button type="button" id="btn-rsvp" title="Speed read (r)" aria-label="Speed read">' + ICON.bolt + '</button>' +
     '<div class="sep"></div>' +
     '<div id="dial" title="Reading progress">' +
       '<svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17"/>' +
@@ -261,6 +277,7 @@
     if (document.fullscreenElement) document.exitFullscreen(); else root.requestFullscreen && root.requestFullscreen();
   });
   dial.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  document.getElementById('btn-rsvp').addEventListener('click', function () { rsvp.start(); });
 
   /* ---- scroll: dial progress, reading position, active heading ---- */
   var ticking = false, restored = false;
@@ -278,6 +295,176 @@
     requestAnimationFrame(function () { ticking = false; onScroll(); });
   });
   window.addEventListener('resize', function () { layoutRails(); onScroll(); drawMarks(); });
+
+  /* ---- speed reading (RSVP overlay, after SwiftRead) ---- */
+  var rsvp = (function () {
+    var box = el('div'); box.id = 'rsvp'; box.setAttribute('aria-label', 'Speed reader');
+    box.innerHTML =
+      '<div class="prog"></div>' +
+      '<div class="top"><span class="count"></span><span class="wpm"></span>' +
+        '<button type="button" class="close" aria-label="Close (Esc)">×</button></div>' +
+      '<div class="stage"><div class="word"><span class="pre"></span><span class="orp"></span><span class="post"></span></div>' +
+        '<div class="slide"><div class="slide-body"></div>' +
+          '<button type="button" class="cont">Continue <kbd>space</kbd></button></div>' +
+        '<div class="done">End of document <button type="button" class="again">Read again</button></div></div>' +
+      '<div class="bar">' +
+        '<button type="button" class="slower" title="Slower (↓)">−10</button>' +
+        '<button type="button" class="back" title="Previous sentence (←)">' + ICON.back + '</button>' +
+        '<button type="button" class="play" title="Play / pause (space)">' + ICON.play + '</button>' +
+        '<button type="button" class="fwd" title="Next sentence (→)">' + ICON.fwd + '</button>' +
+        '<button type="button" class="faster" title="Faster (↑)">+10</button>' +
+      '</div>';
+    body.appendChild(box);
+    var q = function (sel) { return box.querySelector(sel); };
+    var wordPre = q('.pre'), wordOrp = q('.orp'), wordPost = q('.post'), wordBox = q('.word');
+    var slide = q('.slide'), slideBody = q('.slide-body'), done = q('.done');
+    var prog = q('.prog'), count = q('.count'), wpmEl = q('.wpm'), playBtn = q('.play');
+
+    var chunks = [], idx = 0, playing = false, timer = null, totalWords = 0;
+    var SENT = /[.!?…]["'”’)\]]*$/, CLAUSE = /[,;:—–]["'”’)\]]*$/;
+
+    function tokens() {
+      // walk the content's block elements; code blocks and tables become slides
+      var out = [], blocks = content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, .table-wrap, dt, dd');
+      blocks.forEach(function (b) {
+        if (b.closest('pre, .table-wrap') && !(b.tagName === 'PRE' || b.classList.contains('table-wrap'))) return;
+        if (b.tagName === 'LI' && b.querySelector('p')) return; // loose list: its <p>s are walked instead
+        if (b.tagName === 'PRE' || b.classList.contains('table-wrap')) {
+          if (S.rsvpShowCode) out.push({ slide: b, block: b });
+          return;
+        }
+        var head = /^H[1-6]$/.test(b.tagName), words = [];
+        var w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+          var p = n.parentElement; return p && p.closest('pre, .table-wrap, svg') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+        var n;
+        while ((n = w.nextNode())) {
+          var code = n.parentElement.closest('code');
+          if (code) {
+            if (words.length && words[words.length - 1].codeEl === code) { words[words.length - 1].w += n.data; continue; }
+            words.push({ w: n.data, code: true, codeEl: code, block: b }); continue;
+          }
+          n.data.split(/\s+/).forEach(function (t) { if (t) words.push({ w: t, block: b }); });
+        }
+        if (!words.length) return;
+        words.forEach(function (t) { if (t.code) t.w = t.w.replace(/\s+/g, ' ').trim(); });
+        words[words.length - 1].end = head ? 'head' : 'para';
+        out.push.apply(out, words);
+      });
+      return out;
+    }
+    function build() {
+      var toks = tokens(); chunks = []; totalWords = 0;
+      var cur = null;
+      toks.forEach(function (t) {
+        if (t.slide) { if (cur) chunks.push(cur); cur = null; chunks.push({ slide: t.slide, block: t.block, words: 0 }); return; }
+        totalWords++;
+        var boundary = !cur || cur.words >= S.rsvpWords || t.code || cur.code || cur.end;
+        if (boundary) { if (cur) chunks.push(cur); cur = { text: t.w, words: 1, block: t.block, code: !!t.code, end: t.end, sent: SENT.test(t.w), clause: CLAUSE.test(t.w) }; }
+        else { cur.text += ' ' + t.w; cur.words++; cur.end = t.end; cur.sent = SENT.test(t.w); cur.clause = CLAUSE.test(t.w); }
+        if (cur.sent || cur.clause) { chunks.push(cur); cur = null; }
+      });
+      if (cur) chunks.push(cur);
+      chunks.forEach(function (c, i) { c.i = i; });
+    }
+    function duration(c) {
+      if (c.slide) return 0;
+      var base = 60000 / S.rsvpWpm, m = c.words, L = c.text.length;
+      if (c.code) m += Math.min(L, 48) / 16;
+      else if (S.rsvpPauseLong && L >= 9) m *= 1.3;
+      if (S.rsvpPauseNumbers && /\d/.test(c.text)) m *= 1.4;
+      if (S.rsvpPausePunct) { if (c.sent) m *= 2; else if (c.clause) m *= 1.5; }
+      if (S.rsvpPauseParagraph && c.end) m *= (c.end === 'head' ? 2.5 : 2);
+      return Math.max(80, base * m);
+    }
+    function orpIndex(s) { var L = s.length; return L <= 1 ? 0 : L <= 5 ? 1 : L <= 9 ? 2 : L <= 13 ? 3 : 4; }
+    function show() {
+      var c = chunks[idx];
+      if (!c) { finish(); return; }
+      slide.classList.remove('show'); done.classList.remove('show'); wordBox.classList.remove('hide');
+      if (c.slide) {
+        slideBody.innerHTML = ''; slideBody.appendChild(c.slide.cloneNode(true));
+        wordBox.classList.add('hide'); slide.classList.add('show'); pause();
+      } else {
+        var t = c.text, k = c.words > 1 ? orpIndex(t.split(' ')[0]) : orpIndex(t);
+        wordPre.textContent = t.slice(0, k); wordOrp.textContent = t.charAt(k); wordPost.textContent = t.slice(k + 1);
+        wordBox.classList.toggle('is-code', !!c.code);
+      }
+      var left = 0; for (var i = idx; i < chunks.length; i++) left += chunks[i].words;
+      var secs = Math.round(left / S.rsvpWpm * 60), mm = Math.floor(secs / 60), ss = secs % 60;
+      count.textContent = (idx + 1) + ' / ' + chunks.length + ' · ' + mm + ':' + (ss < 10 ? '0' : '') + ss + ' left';
+      prog.style.width = (chunks.length ? (idx + 1) / chunks.length * 100 : 0) + '%';
+      wpmEl.textContent = S.rsvpWpm + ' wpm' + (S.rsvpWords > 1 ? ' · ' + S.rsvpWords + ' words' : '');
+    }
+    function tick() {
+      if (!playing) return;
+      show();
+      var c = chunks[idx];
+      if (!c || c.slide) return;
+      timer = setTimeout(function () { idx++; if (idx >= chunks.length) { finish(); return; } tick(); }, duration(c));
+    }
+    function play() {
+      if (idx >= chunks.length) idx = 0;
+      playing = true; playBtn.innerHTML = ICON.pause; playBtn.classList.add('on');
+      clearTimeout(timer); timer = setTimeout(tick, 250);
+    }
+    function pause() { playing = false; clearTimeout(timer); playBtn.innerHTML = ICON.play; playBtn.classList.remove('on'); }
+    function finish() { pause(); idx = chunks.length; wordBox.classList.add('hide'); slide.classList.remove('show'); done.classList.add('show'); prog.style.width = '100%'; }
+    function sentenceStart(i) { while (i > 0 && !(chunks[i - 1].sent || chunks[i - 1].end || chunks[i - 1].slide)) i--; return i; }
+    function back() { var s0 = sentenceStart(Math.min(idx, chunks.length - 1)); idx = s0 < idx ? s0 : sentenceStart(Math.max(0, s0 - 1)); restart(); }
+    function forward() { var i = idx; while (i < chunks.length - 1 && !(chunks[i].sent || chunks[i].end || chunks[i].slide)) i++; idx = Math.min(chunks.length - 1, i + 1); restart(); }
+    function restart() { clearTimeout(timer); if (playing) { timer = setTimeout(tick, 150); } else show(); }
+    function speed(d) { set('rsvpWpm', Math.min(LIMITS.rsvpWpm[1], Math.max(LIMITS.rsvpWpm[0], S.rsvpWpm + d))); show(); }
+    function cont() { if (idx < chunks.length && chunks[idx].slide) idx++; play(); }
+    function startIndex() {
+      var top = 60;
+      for (var i = 0; i < chunks.length; i++) if (chunks[i].block.getBoundingClientRect().bottom > top) return i;
+      return 0;
+    }
+    var api = { open: false };
+    api.start = function () {
+      build();
+      if (!chunks.length) return;
+      idx = startIndex(); api.open = true; box.classList.add('open'); body.classList.add('rsvp-open');
+      togglePanel(false); hidePop(); show(); play();
+    };
+    api.stop = function () {
+      pause(); api.open = false; box.classList.remove('open'); body.classList.remove('rsvp-open');
+      var c = chunks[Math.min(idx, chunks.length - 1)];
+      if (c && c.block) {
+        // one instant jump: a smooth scrollIntoView would be cancelled by a follow-up scrollBy
+        window.scrollTo({ top: c.block.getBoundingClientRect().top + window.scrollY - 80, behavior: 'instant' });
+        c.block.classList.add('rsvp-left'); setTimeout(function () { c.block.classList.remove('rsvp-left'); }, 1800);
+      }
+      onScroll();
+    };
+    api.refresh = function () {
+      if (!api.open) return;
+      var block = chunks[Math.min(idx, chunks.length - 1)] && chunks[Math.min(idx, chunks.length - 1)].block;
+      var was = chunks.length; build();
+      if (was !== chunks.length && block) { for (var i = 0; i < chunks.length; i++) if (chunks[i].block === block) { idx = i; break; } }
+      idx = Math.min(idx, chunks.length - 1); restart();
+    };
+    api.key = function (ev) {
+      switch (ev.key) {
+        case 'Escape': api.stop(); return true;
+        case ' ': if (chunks[idx] && chunks[idx].slide) cont(); else if (playing) pause(); else play(); return true;
+        case 'ArrowLeft': back(); return true;
+        case 'ArrowRight': forward(); return true;
+        case 'ArrowUp': case '+': case '=': speed(10); return true;
+        case 'ArrowDown': case '-': case '_': speed(-10); return true;
+        case 'r': api.stop(); return true;
+      }
+      return false;
+    };
+    q('.close').addEventListener('click', api.stop);
+    q('.again').addEventListener('click', function () { idx = 0; play(); });
+    q('.cont').addEventListener('click', cont);
+    playBtn.addEventListener('click', function () { if (chunks[idx] && chunks[idx].slide) cont(); else if (playing) pause(); else play(); });
+    q('.back').addEventListener('click', back); q('.fwd').addEventListener('click', forward);
+    q('.slower').addEventListener('click', function () { speed(-10); }); q('.faster').addEventListener('click', function () { speed(10); });
+    q('.stage').addEventListener('click', function (ev) { if (ev.target.closest('button') || ev.target.closest('.slide')) return; if (playing) pause(); else if (!(chunks[idx] && chunks[idx].slide)) play(); });
+    return api;
+  })();
 
   /* ---- the Style panel ---- */
   var ALIGNS = [
@@ -306,7 +493,20 @@
     { type: 'section', label: 'Highlight settings' },
     { type: 'toggle', key: 'highlightEnabled', label: 'Enable Highlighting' },
     { type: 'toggle', key: 'showHighlights', label: 'Show highlights on page' },
-    { type: 'toggle', key: 'showMarks', label: 'Show highlight page marks' }
+    { type: 'toggle', key: 'showMarks', label: 'Show highlight page marks' },
+    { type: 'section', label: 'Speed reading' },
+    { type: 'step', key: 'rsvpWpm', label: 'Speed', fmt: function (v) { return v + ' wpm'; } },
+    { type: 'step', key: 'rsvpWords', label: 'Words at a time', fmt: function (v) { return String(v); } },
+    { type: 'step', key: 'rsvpFontSize', label: 'Font size', fmt: function (v) { return v + 'px'; } },
+    { type: 'select', key: 'rsvpFont', label: 'Font', options: [['serif', 'serif'], ['sans-serif', 'sans-serif'], ['monospace', 'monospace'], ['page', 'same as page']] },
+    { type: 'select', key: 'rsvpTheme', label: 'Theme', options: [['dark', 'Dark'], ['light', 'Light'], ['page', 'Same as page']] },
+    { type: 'toggle', key: 'rsvpFocusMarks', label: 'Focus marks' },
+    { type: 'toggle', key: 'rsvpFocusLetter', label: 'Focus letter' },
+    { type: 'toggle', key: 'rsvpPauseLong', label: 'Pause on long words' },
+    { type: 'toggle', key: 'rsvpPauseNumbers', label: 'Pause on numbers' },
+    { type: 'toggle', key: 'rsvpPausePunct', label: 'Pause on punctuation' },
+    { type: 'toggle', key: 'rsvpPauseParagraph', label: 'Pause on paragraphs' },
+    { type: 'toggle', key: 'rsvpShowCode', label: 'Pause and show code blocks' }
   ];
   function buildPanel() {
     panel.innerHTML = '<div class="ph"><span>Style</span><button type="button" aria-label="Close">×</button></div><div class="pb"></div><div class="pf"></div>';
@@ -370,9 +570,11 @@
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     var tag = (ev.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') { if (ev.key === 'Escape') togglePanel(false); return; }
+    if (rsvp.open && rsvp.key(ev)) { ev.preventDefault(); return; }
     if (ev.key === 'Escape') { togglePanel(false); hidePop(); }
     else if (ev.key === 's') togglePanel();
     else if (ev.key === 'f') document.getElementById('btn-full').click();
+    else if (ev.key === 'r') rsvp.start();
   });
 
   /* ---- go ---- */

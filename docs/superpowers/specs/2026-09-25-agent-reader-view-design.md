@@ -150,3 +150,36 @@ prefixes the output with "Claude Code" or "Codex", which `clip-reader` passes
 to `reader-render -t` so the meta line names the source. No match → exit 1 →
 the `reader-clean` fallback as before (source "Clipboard"). It imports
 `reader-last` for the JSONL reader and format detection.
+
+## Speed reading (2026-10-05)
+
+An RSVP overlay after SwiftRead (rapid serial visual presentation: one chunk
+at a time at a fixed point). The rail's bolt button or `r` opens it starting
+at the first block in view; `Esc` (or `r`) closes it and jumps the page to the
+block you stopped in, outlined for a moment, so the normal reading-position
+memory resumes there next time.
+
+- **Display.** Serif word centred on a dark field; the focus letter (optimal
+  recognition point: index 0/1/2/3/4 for lengths 1/2-5/6-9/10-13/14+) is
+  tinted red with a tick above and below. Inline code is shown whole, in mono.
+  A multi-line code block or table becomes a *slide*: the reader pauses and
+  shows it until you press space or Continue ("Pause and show code blocks";
+  off = skipped). Progress bar, "n / total · m:ss left" and the wpm label.
+- **Controls.** −10 / previous sentence / play-pause / next sentence / +10,
+  as in SwiftRead; keys space, ←/→, ↑/↓ (or +/−), Esc; click the stage to
+  pause.
+- **Timing.** Base dwell 60000/wpm per word (a chunk of N words dwells N×),
+  then micro-pauses: long words (≥9 chars) ×1.3, numbers ×1.4, clause
+  punctuation ×1.5, sentence end ×2, paragraph end ×2 / heading ×2.5, inline
+  code + min(len,48)/16 words. Chunks never cross a sentence or clause end, an
+  inline code span, or a block boundary.
+- **Settings** (panel section "Speed reading", persisted like the rest):
+  Speed 100–1200 wpm step 10 (default 320), Words at a time 1–3, Font size,
+  Font (serif / sans-serif / monospace / same as page), Theme (Dark / Light /
+  Same as page), Focus marks, Focus letter, Pause on long words / numbers /
+  punctuation / paragraphs, Pause and show code blocks. Changing a setting
+  mid-read rebuilds the chunks at the same block; the panel sits above the
+  overlay.
+
+Left out on purpose: text-to-speech, SwiftRead's Warm/Calm/Matrix themes and
+the pixel-based Focus Span.
