@@ -12,7 +12,8 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
 
 text=$(pbpaste 2>/dev/null)
-if [ -z "${text//[[:space:]]/}" ]; then
+# (not ${text//[[:space:]]/}: bash 3.2 takes ~10s on a few KB of non-ASCII text)
+if ! [[ $text =~ [^[:space:]] ]]; then
   osascript -e 'display notification "Clipboard has no text to read." with title "Open in Reader"' 2>/dev/null
   exit 0
 fi

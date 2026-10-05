@@ -11,7 +11,8 @@ Design notes: [`superpowers/specs/2026-09-25-agent-reader-view-design.md`](super
 | From | Do this | What is rendered |
 |---|---|---|
 | tmux, in a Claude Code or Codex window | `prefix R` | the last reply, from the agent's transcript (lossless) |
-| anywhere, after copying text | the **Open in Reader** Quick Action (give it a global shortcut, see below) | the copy, looked up in the transcripts so the original Markdown is used; otherwise cleaned up as well as possible |
+| tmux, after copying text | `prefix C-r` | the copy, looked up in the transcripts so the original Markdown is used; otherwise cleaned up as well as possible |
+| anywhere, after copying text | the **Open in Reader** Quick Action (give it a global shortcut, see below) | same as `prefix C-r` |
 | a shell | `reader-render < notes.md`, `pbpaste \| reader-clean \| reader-render`, `reader-last TRANSCRIPT \| reader-render` | the Markdown on stdin |
 
 Every route ends in `reader-render`, which writes `/tmp/reader-<timestamp>.html`
@@ -22,8 +23,14 @@ chooses the output path.
 **Shortcut for the Quick Action:** System Settings → Keyboard → Keyboard
 Shortcuts… → Services → General → *Open in Reader*. `⌃⌥⌘R` is free in Ghostty,
 Claude Code, Codex and the karabiner rules. Nothing about the Quick Action
-needs a right-click: copy by any means (tmux copy mode, Option-drag, `⌘C`), then
-press the shortcut.
+needs a right-click: copy by any means (tmux copy mode, Option-drag, `⌘C`;
+Ghostty copies a selection to the clipboard as you make it), then press the
+shortcut. **Apps learn Services shortcuts when they launch**, so after
+assigning or changing one, quit and reopen the app you press it in (tmux
+sessions survive a Ghostty restart: reattach with `tmux a`). Until then the
+key just reaches the app, which in a terminal clears the selection and does
+nothing else. Inside tmux, `prefix C-r` does the same job with no Services
+involvement.
 
 ### Copied text keeps its formatting
 
