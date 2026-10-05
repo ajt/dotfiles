@@ -37,7 +37,6 @@ appends to `.prototypes/<slug>/DECISIONS.md` and archives screenshots to
 `round-N/shots/` when a browser tool is available. A final winner gets
 promoted to a real component, with the decision record offered alongside.
 Deployed to `~/.claude/skills/prototype` by `symlink-setup.sh`.
-Spec: `docs/superpowers/specs/2026-06-12-prototype-skill-design.md`.
 
 ## Before publishing edits to `settings.example.json`
 

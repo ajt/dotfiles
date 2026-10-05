@@ -24,3 +24,6 @@ __pycache__/
 # git worktrees (feature work happens in .worktrees/<slug>, matching the
 # perfect repo convention)
 .worktrees/
+
+# AI planning docs (superpowers specs/plans) stay local
+docs/superpowers/

@@ -4,8 +4,6 @@ Open an AI agent's reply (or anything you copied) as a clean, readable page
 in the browser, styled after the Clearly Reader extension, with a persistent
 Style panel, highlights, and a SwiftRead-style speed reader.
 
-Design notes: [`superpowers/specs/2026-09-25-agent-reader-view-design.md`](superpowers/specs/2026-09-25-agent-reader-view-design.md).
-
 ## Opening a page
 
 | From | Do this | What is rendered |
