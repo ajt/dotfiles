@@ -108,6 +108,15 @@ export NVM_DIR="$HOME/.nvm"
 # uv handles venvs and Python versions — no pyenv/virtualenvwrapper needed
 # install: brew install uv
 
+# A new shell never starts inside a virtualenv. A tmux server (or any parent)
+# started from a shell with a venv active hands VIRTUAL_ENV and its bin/ on
+# PATH to every new window, silently and without the prompt showing it. Drop
+# that here; activate a venv deliberately in the shell that needs it.
+if [[ -n $VIRTUAL_ENV ]]; then
+  path=(${path:#$VIRTUAL_ENV/bin})
+  unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT
+fi
+
 # ─── Tailscale ──────────────────────────────────────────────────────
 alias ts="tailscale"
 alias tss="tailscale status"
