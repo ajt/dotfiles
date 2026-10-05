@@ -241,4 +241,4 @@ body.rsvp-open { overflow: hidden; }
   #tools { top: 12px; right: 8px; }
   #panel { width: 100vw; }
 }
-@media print { #tools, #panel, #outline, #marks, #hl-pop { display: none !important; } #page { padding: 0; } }
+@media print { #tools, #panel, #outline, #marks, #hl-pop, .wrap-btn { display: none !important; } #page { padding: 0; } }

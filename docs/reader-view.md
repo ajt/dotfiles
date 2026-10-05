@@ -25,12 +25,13 @@ Shortcuts… → Services → General → *Open in Reader*. `⌃⌥⌘R` is free
 Claude Code, Codex and the karabiner rules. Nothing about the Quick Action
 needs a right-click: copy by any means (tmux copy mode, Option-drag, `⌘C`;
 Ghostty copies a selection to the clipboard as you make it), then press the
-shortcut. **Apps learn Services shortcuts when they launch**, so after
-assigning or changing one, quit and reopen the app you press it in (tmux
-sessions survive a Ghostty restart: reattach with `tmux a`). Until then the
-key just reaches the app, which in a terminal clears the selection and does
-nothing else. Inside tmux, `prefix C-r` does the same job with no Services
-involvement.
+shortcut (whichever keys you chose; the one assigned here is `⇧⌥⌘R`).
+**An app that was already running when you assigned the shortcut does not
+know it yet**: open that app's Services menu once (Ghostty → Services) or
+quit and reopen it (tmux sessions survive a Ghostty restart: reattach with
+`tmux a`). Until then the key just reaches the app, which in a terminal
+clears the selection and does nothing else. Inside tmux, `prefix C-r` does
+the same job with no Services involvement.
 
 ### Copied text keeps its formatting
 
@@ -76,7 +77,7 @@ reply applies to every page after it.
 | Bionic Reading | bold the first part of each word |
 | Font Family | monospace, sans-serif, serif, system |
 | Inline Code | subtle grey, tinted red, bordered grey, outlined red, accent blue, inverted pill |
-| Wrap code blocks | wrap long lines in code blocks to the column instead of scrolling sideways; every code block also has a small *wrap* / *unwrap* button in its bottom-right corner that overrides this for that block (for long text output that is not really code) |
+| Wrap code blocks | wrap long lines in code blocks to the column instead of scrolling sideways; every code block also has a small *wrap* / *unwrap* button in its bottom-right corner that overrides this for that block (for long text output that is not really code); flipping the setting resets the per-block choices |
 | Follow System Theme | dark when macOS is dark |
 | Theme | Default, Dark, Sepia |
 | Remember reading position | return to where you were on the same document |
