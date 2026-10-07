@@ -7,8 +7,18 @@
 # Options:
 #   -o FILE   write here instead of /tmp/reader-<timestamp>.html
 #   -n        don't open the result, just print its path
-#   -t TITLE  <title> and the source shown in the meta line (default
-#             "Terminal output"; never rendered as a heading)
+#   -t TITLE  the source shown in the meta line, and the tab title when nothing
+#             better is known (default "Terminal output"; never rendered as a
+#             heading)
+#   -T FILE   the transcript the Markdown came from. `reader-last --meta` reads
+#             the session's title, working directory, project and branch out of
+#             it; they become the tab title and the extra meta-line entries. A
+#             transcript that cannot be read is reported and ignored.
+#
+# Tab title, first that applies: the session title, the Markdown's leading
+# "# Heading", the source; followed by " · project" when the project is known. With
+# -T the meta line's source is the agent's name (Claude Code, Codex) and -t is
+# the fallback.
 #
 # The page (bin/reader-view/: template.html, style.css, app.js) mimics the
 # Clearly Reader layout — white article card on a grey page, monospace at 25px,
@@ -23,13 +33,14 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
 assets="$dir/reader-view"
 
-out='' open=1 title='Terminal output'
-while getopts 'o:nt:' opt; do
+out='' open=1 title='Terminal output' transcript=''
+while getopts 'o:nt:T:' opt; do
   case "$opt" in
     o) out=$OPTARG ;;
     n) open=0 ;;
     t) title=$OPTARG ;;
-    *) echo "usage: reader-render [-o FILE] [-n] [-t TITLE] < markdown" >&2; exit 2 ;;
+    T) transcript=$OPTARG ;;
+    *) echo "usage: reader-render [-o FILE] [-n] [-t TITLE] [-T TRANSCRIPT] < markdown" >&2; exit 2 ;;
   esac
 done
 
@@ -42,11 +53,38 @@ for f in template.html style.css app.js; do
 done
 
 [ -n "$out" ] || out="/tmp/reader-$(date +%Y%m%d-%H%M%S).html"
-title=${title//\"/\'}   # pandoc -M escapes <>& but not a quote inside an attribute
 
 md=$(mktemp -t reader-md) && hdr=$(mktemp -t reader-hdr) && ftr=$(mktemp -t reader-ftr) || exit 1
 trap 'rm -f "$md" "$hdr" "$ftr"' EXIT
 cat > "$md"
+
+# Session metadata from the transcript (see -T). Each field lands in a shell
+# variable; `reader-last --meta` always prints every key, empty when unknown.
+source=$title session='' project='' branch='' cwd=''
+if [ -n "$transcript" ]; then
+  if json=$("$dir/reader-last" --meta "$transcript" 2>&1); then
+    eval "$(printf '%s' "$json" | python3 -c '
+import json, shlex, sys
+m = json.load(sys.stdin)
+for k in ("label", "title", "project", "branch", "cwd"):
+    print("m_%s=%s" % (k, shlex.quote(m.get(k) or "")))')"
+    source=${m_label:-$title} session=$m_title project=$m_project branch=$m_branch cwd=$m_cwd
+  else
+    echo "reader-render: ignoring transcript: ${json#reader-last: }" >&2
+  fi
+fi
+# The tab title: session title, else the leading "# Heading" of the Markdown,
+# else the source (the agent's name with -T, -t otherwise); then the project.
+heading=$(sed -n '1,/[^[:space:]]/{s/^[[:space:]]*#[[:space:]]\{1,\}//p;}' "$md" | head -1 | sed 's/[[:space:]]*#*[[:space:]]*$//')
+tab=${session:-${heading:-$source}}
+[ -n "$project" ] && [ "$tab" != "$project" ] && tab="$tab · $project"
+
+# pandoc -M escapes <>& but not a quote inside an attribute, and an empty -M
+# value means true, so quotes are swapped and empty fields are not passed.
+metas=()
+for kv in "pagetitle=$tab" "source=$source" "session=$session" "project=$project" "branch=$branch" "cwd=$cwd"; do
+  [ -n "${kv#*=}" ] && metas+=(-M "${kv//\"/\'}")
+done
 # Content hash keys the remembered reading position and highlights for this
 # document, so re-rendering the same reply finds them again.
 hash=$(shasum -a 1 < "$md" | cut -c1-12)
@@ -68,7 +106,7 @@ hash=$(shasum -a 1 < "$md" | cut -c1-12)
 # swallowed as HTML. pagetitle (not title) keeps pandoc from adding an <h1>.
 # -M values are escaped by pandoc; -V values are inserted verbatim (hash, date).
 pandoc -f gfm-raw_html -t html5 -s --wrap=none --template "$assets/template.html" \
-  -M "pagetitle=$title" -M "source=$title" \
+  "${metas[@]}" \
   -V "dochash=$hash" -V "rendered=$(date '+%Y-%m-%d %H:%M')" \
   -H "$hdr" -A "$ftr" -o "$out" "$md" || exit 1
 

@@ -50,7 +50,13 @@ h1.doc-title { font-size: 1.9em; line-height: 1.3; margin: 1.2em 0 0.6em; font-w
   margin: 0 0 1.6em; font-family: var(--font-family);
 }
 #meta span { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
-#meta svg { width: 0.75em; height: 0.75em; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#meta svg, #session svg { width: 0.75em; height: 0.75em; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* the agent session the reply came from (its title), above the meta line */
+#session {
+  display: flex; align-items: center; gap: 0.4em; color: var(--muted); font-size: 0.95em;
+  margin: 0 0 0.5em; font-family: var(--font-family);
+}
+#head > #session:first-child { margin-top: 1.2em; }
 
 /* body text */
 #content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {
