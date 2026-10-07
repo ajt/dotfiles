@@ -2,6 +2,7 @@
 """reader-last — print an agent's last reply as the original Markdown.
 
     reader-last [-n N] [--all] TRANSCRIPT.jsonl
+    reader-last --meta TRANSCRIPT.jsonl
 
 Reads the JSONL transcript Claude Code or Codex keeps for a session and prints
 the final assistant text of the last turn (or the last N turns, oldest first,
@@ -20,9 +21,25 @@ Format is detected from the file, not the path:
                 {"type":"output_text","text":...}]}}
                final_answer marks the completed reply; commentary messages are
                the interim narration and are skipped unless --all is given.
+
+--meta prints, instead of a reply, one JSON object describing the session the
+transcript belongs to, for the reader page's tab title and meta line:
+  kind        "claude" or "codex"
+  label       "Claude Code" or "Codex"
+  path        the transcript
+  session_id
+  cwd         the working directory of the last turn (Claude Code records it on
+              every message; Codex in its session_meta record)
+  project     the name of the git checkout holding cwd (a worktree's own name),
+              or cwd's last component outside git
+  branch      the git branch of the last turn (Claude Code only)
+  title       the session's title: the one it was renamed to, else the one
+              Claude Code generated (Claude Code only; absent on a new session)
+Fields that are unknown are empty strings, never missing.
 """
 import argparse
 import json
+import os
 import sys
 
 
@@ -121,12 +138,61 @@ def detect(path):
     return "claude"
 
 
+def project_name(cwd):
+    """The git checkout that holds cwd, by name — the last path component of
+    the directory with the .git entry (a directory for a clone, a file for a
+    worktree, so a worktree is named after itself). Outside git, cwd's own
+    last component."""
+    if not cwd:
+        return ""
+    d = cwd
+    while True:
+        if os.path.lexists(os.path.join(d, ".git")):
+            return os.path.basename(d) or d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return os.path.basename(cwd) or cwd
+        d = parent
+
+
+def meta(path, kind):
+    """Describe the session a transcript belongs to (see --meta above)."""
+    m = {"kind": kind, "label": "Codex" if kind == "codex" else "Claude Code", "path": path,
+         "session_id": "", "cwd": "", "project": "", "branch": "", "title": ""}
+    ai_title = custom_title = ""
+    for r in records(path):
+        t = r.get("type")
+        if kind == "codex":
+            if t == "session_meta":
+                p = r.get("payload") or {}
+                m["session_id"] = p.get("id") or p.get("session_id") or m["session_id"]
+                m["cwd"] = p.get("cwd") or m["cwd"]
+            continue
+        if t in ("user", "assistant"):
+            if r.get("isSidechain"):
+                continue
+            m["cwd"] = r.get("cwd") or m["cwd"]
+            m["branch"] = r.get("gitBranch") or m["branch"]
+            m["session_id"] = r.get("sessionId") or m["session_id"]
+        elif t == "ai-title":
+            ai_title = r.get("aiTitle") or ai_title
+        elif t == "custom-title":
+            custom_title = r.get("customTitle") or custom_title
+        elif t == "summary" and not ai_title:
+            ai_title = r.get("summary") or ""
+    m["title"] = (custom_title or ai_title).strip()
+    m["project"] = project_name(m["cwd"])
+    return m
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("transcript")
     ap.add_argument("-n", type=int, default=1, help="last N turns (default 1)")
     ap.add_argument("--all", action="store_true",
                     help="every text block of each turn, not just the final reply")
+    ap.add_argument("--meta", action="store_true",
+                    help="print a JSON description of the session instead of a reply")
     a = ap.parse_args()
 
     try:
@@ -134,6 +200,9 @@ def main():
     except OSError as e:
         sys.stderr.write(f"reader-last: cannot read transcript: {e.strerror}: {a.transcript}\n")
         return 1
+    if a.meta:
+        sys.stdout.write(json.dumps(meta(a.transcript, kind), ensure_ascii=False) + "\n")
+        return 0
     gen = codex_turns if kind == "codex" else claude_turns
     turns = list(gen(records(a.transcript), a.all))
     if not turns:

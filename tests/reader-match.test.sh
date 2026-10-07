@@ -52,6 +52,8 @@ out=$(printf '%s\n' "$clip" | "$here/../bin/reader-match" --label)
 assert_eq "$?" 0 "intact copy matches"
 assert_eq "$(printf '%s\n' "$out" | head -1)" "Claude Code" "label line"
 assert_contains "$out" "| Tanium: Read sensors | Endpoint ID, sensor names → readings |" "original row"
+out=$(printf '%s\n' "$clip" | "$here/../bin/reader-match" --label --path)
+assert_eq "$(printf '%s\n' "$out" | sed -n 2p)" "$HOME/.claude/projects/p/s.jsonl" "--path line after the label"
 
 # --- a copy missing columns 67-92 of every line still matches ---------------
 damaged=$(printf '%s\n' "$clip" | python3 -c 'import sys

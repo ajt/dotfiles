@@ -14,9 +14,29 @@ Style panel, highlights, and a SwiftRead-style speed reader.
 | a shell | `reader-render < notes.md`, `pbpaste \| reader-clean \| reader-render`, `reader-last TRANSCRIPT \| reader-render` | the Markdown on stdin |
 
 Every route ends in `reader-render`, which writes `/tmp/reader-<timestamp>.html`
-and opens it in the default browser. `-t TITLE` sets the tab title and the
-source shown in the meta line; `-n` prints the path without opening; `-o FILE`
-chooses the output path.
+and opens it in the default browser. `-t TITLE` sets the source shown in the
+meta line (and the tab title when nothing better is known); `-T TRANSCRIPT`
+names the transcript the Markdown came from (below); `-n` prints the path
+without opening; `-o FILE` chooses the output path.
+
+### The session behind the page
+
+The two agent routes know which transcript the reply came from (`prefix R`
+from the window's `@agent_transcript`, the clipboard routes from the match),
+and pass it to `reader-render -T`. `reader-last --meta` reads the session out
+of it, and the page shows:
+
+| | From the transcript | Shown |
+|---|---|---|
+| **Tab title** | the session's title (the one Claude Code generated, or the one you renamed it to), else the reply's leading `# Heading`, else the agent's name | `Readability markdown display update · dotfiles` |
+| **Session line** | the session title, above the meta line | 🗨 *Readability markdown display update* |
+| **Meta line** | the agent, the project (the git checkout holding the working directory; a worktree is named after itself) with the full path as a tooltip, and the branch of the last turn | *Claude Code · dotfiles · main* |
+
+A brand-new session has no title yet, so its tab falls back to the heading or
+the agent's name. Codex transcripts carry the working directory but neither a
+title nor a branch. Without a transcript (a clipboard copy that matched nothing,
+or Markdown on stdin) nothing changes: the tab is the heading or `-t`, and the
+meta line is as before. `reader-last --meta FILE` prints the fields as JSON.
 
 **Shortcut for the Quick Action:** System Settings → Keyboard → Keyboard
 Shortcuts… → Services → General → *Open in Reader*. `⌃⌥⌘R` is free in Ghostty,
@@ -45,8 +65,8 @@ line then says *Claude Code* or *Codex*; when nothing matches it falls back to
 ## The page
 
 A white article card on a grey page, monospace at 25px by default. A leading
-`# Heading` becomes the document title. The meta line shows source, reading
-time, word count and render time. Headings are listed in an outline in the
+`# Heading` becomes the document title. The meta line shows source, project
+and branch (when known, see above), reading time, word count and render time. Headings are listed in an outline in the
 left gutter (the current one is tracked while you scroll). The right rail has:
 
 | Button | Key | Does |
@@ -135,7 +155,7 @@ panel opens above the reader.
 |---|---|
 | `bin/reader-render` | Markdown on stdin → styled HTML → browser |
 | `bin/reader-view/` | the page: pandoc `template.html`, `style.css`, `app.js` |
-| `bin/reader-last` | last reply from a Claude Code or Codex transcript |
+| `bin/reader-last` | last reply from a Claude Code or Codex transcript; `--meta` describes the session |
 | `bin/reader-match` | find copied text in the transcripts, print its Markdown |
 | `bin/reader-clean` | lossy clean-up of copied terminal text |
 | `bin/clip-reader` | clipboard → `reader-match` or `reader-clean` → `reader-render` |

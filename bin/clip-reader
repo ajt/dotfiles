@@ -25,10 +25,15 @@ if ! [[ $text =~ [^[:space:]] ]]; then
   exit 0
 fi
 
-if matched=$(printf '%s\n' "$text" | "$dir/reader-match" --label 2>/dev/null) && [ -n "$matched" ]; then
+# reader-match --label --path: line 1 the agent's name, line 2 the transcript
+# (reader-render -T reads the session's title, project and branch from it),
+# then the Markdown.
+if matched=$(printf '%s\n' "$text" | "$dir/reader-match" --label --path 2>/dev/null) && [ -n "$matched" ]; then
   source=${matched%%$'\n'*}
-  md=${matched#*$'\n'}
-  out=$(printf '%s\n' "$md" | "$dir/reader-render" -t "$source" 2>&1)
+  rest=${matched#*$'\n'}
+  transcript=${rest%%$'\n'*}
+  md=${rest#*$'\n'}
+  out=$(printf '%s\n' "$md" | "$dir/reader-render" -t "$source" -T "$transcript" 2>&1)
 else
   out=$(printf '%s\n' "$text" | "$dir/reader-clean" | "$dir/reader-render" -t 'Clipboard' 2>&1)
 fi

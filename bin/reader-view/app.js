@@ -93,6 +93,9 @@
     clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6"/></svg>',
     cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    folder: '<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    branch: '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 7.5v9M18 10.5c0 4-12 2-12 6"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     full: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>',
     bolt: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/></svg>',
@@ -101,8 +104,21 @@
     fwd: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>'
   };
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // Session line and meta line. The session title, project, branch and working
+  // directory come from the transcript (reader-render -T); each is left out
+  // when unknown, so a plain clipboard render shows the meta line as before.
+  var session = body.getAttribute('data-session') || '';
+  var project = body.getAttribute('data-project') || '';
+  var branch = body.getAttribute('data-branch') || '';
+  var cwd = body.getAttribute('data-cwd') || '';
+  if (session) {
+    var sl = el('div'); sl.id = 'session'; sl.innerHTML = ICON.chat + '<span>' + esc(session) + '</span>';
+    head.insertBefore(sl, meta);
+  }
   meta.innerHTML =
     '<span>' + ICON.src + esc(body.getAttribute('data-source') || 'Terminal output') + '</span>' +
+    (project ? '<span title="' + esc(cwd) + '">' + ICON.folder + esc(project) + '</span>' : '') +
+    (branch ? '<span>' + ICON.branch + esc(branch) + '</span>' : '') +
     '<span>' + ICON.clock + minutes + ' Minute' + (minutes === 1 ? '' : 's') + ' Read</span>' +
     '<span>' + ICON.doc + words + ' Words</span>' +
     '<span>' + ICON.cal + esc(body.getAttribute('data-rendered') || '') + '</span>';

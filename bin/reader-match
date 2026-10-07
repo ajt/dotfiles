@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """reader-match — find copied agent text in the transcripts, print its Markdown.
 
-    pbpaste | reader-match [--label] [--days N]
+    pbpaste | reader-match [--label] [--path] [--days N]
 
 Text copied out of the Claude Code or Codex TUI has lost its Markdown (bold
 and code spans are rendered, headings are just bold lines, tables are boxes).
@@ -16,6 +16,8 @@ one block. Exit 1 when nothing matches, so `clip-reader` falls back to
 `reader-clean`.
 
   --label   print "Claude Code" or "Codex" on the first line before the Markdown
+  --path    print the matched transcript's path on a line before the Markdown
+            (after the label, if both), for `reader-render -T`
   --days N  only look at transcripts modified in the last N days (default 30)
 """
 import argparse
@@ -146,16 +148,17 @@ def find(needles, parts, days):
         for blocks in reversed(turns):
             for b in reversed(blocks):
                 if matches(norm(b), needles, parts):
-                    return label, b
+                    return label, path, b
             joined = "\n\n".join(blocks)
             if len(blocks) > 1 and matches(norm(joined), needles, parts):
-                return label, joined
+                return label, path, joined
     return None
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--label", action="store_true")
+    ap.add_argument("--path", action="store_true")
     ap.add_argument("--days", type=int, default=30)
     a = ap.parse_args()
 
@@ -175,9 +178,11 @@ def main():
     if not hit:
         sys.stderr.write("reader-match: no transcript contains the copied text\n")
         return 1
-    label, md = hit
+    label, path, md = hit
     if a.label:
         sys.stdout.write(label + "\n")
+    if a.path:
+        sys.stdout.write(path + "\n")
     sys.stdout.write(md.rstrip() + "\n")
     return 0
 
