@@ -7,14 +7,9 @@
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state SessionStart" } ] }
     ],
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [ { "type": "command", "command": "bash ~/.agents/skills/adversarial-completion-review/hook-gate.sh" } ]
-      },
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state PreToolUse" } ] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "bash ~/.agents/skills/adversarial-completion-review/hook-challenge.sh" } ] },
       { "hooks": [ { "type": "command", "command": "~/bin/claude-tmux-state UserPromptSubmit" } ] }
     ],
     "Notification": [
