@@ -2,7 +2,7 @@
 # tests/claude-tmux-state.test.sh — unit tests for bin/claude-tmux-state.
 # Spins up a private tmux server, routes the helper's bare `tmux` to it via a
 # PATH shim, drives hook events, and asserts the resulting window options.
-set -u
+set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$ROOT/bin/claude-tmux-state"
@@ -10,7 +10,7 @@ SOCK="claude-state-test-$$"
 SHIM="$(mktemp -d)"
 REAL_TMUX="$(command -v tmux)"
 
-cleanup() { "$REAL_TMUX" -L "$SOCK" kill-server 2>/dev/null; rm -rf "$SHIM"; }
+cleanup() { "$REAL_TMUX" -L "$SOCK" kill-server 2>/dev/null || true; rm -rf "$SHIM"; }
 trap cleanup EXIT
 
 # shim so the helper's bare `tmux` talks to our throwaway server
@@ -20,11 +20,52 @@ exec "$REAL_TMUX" -L "$SOCK" "\$@"
 EOF
 chmod +x "$SHIM/tmux"
 
-"$REAL_TMUX" -L "$SOCK" new-session -d -s t -x 80 -y 24
-PANE="$("$REAL_TMUX" -L "$SOCK" display-message -p -t t '#{pane_id}')"
+# Use a known non-login shell with no startup files: a user's prompt/plugins
+# can otherwise leave live children in the supposedly bare-shell gc fixture.
+# A private socket alone does not prevent tmux from loading ~/.tmux.conf.
+cat > "$SHIM/tmux.conf" <<'EOF'
+set -g default-shell /bin/sh
+set -g default-command 'exec /bin/sh'
+set -g status off
+set -g automatic-rename off
+EOF
+# Give the first window the session's name deliberately. An unqualified `-t t`
+# would target that existing window; `-t t:` below must select the session.
+env -u TMUX -u ENV -u BASH_ENV "$REAL_TMUX" -L "$SOCK" -f "$SHIM/tmux.conf" \
+  new-session -d -s t -n t -x 80 -y 24
+PANE="$("$REAL_TMUX" -L "$SOCK" display-message -p -t t: '#{pane_id}')"
+
+# Wait for fixture processes, not an assumed shell startup duration. A failed
+# setup aborts before an empty window ID can accidentally target another pane.
+wait_for() {
+  local label="$1" attempt
+  shift
+  for ((attempt=0; attempt<50; attempt++)); do
+    "$@" && return 0
+    sleep 0.1
+  done
+  printf 'FAIL: timed out waiting for %s\n' "$label" >&2
+  return 1
+}
+pane_command_is() {
+  [ "$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$1" '#{pane_current_command}')" = "$2" ]
+}
+pane_has_child() {
+  local pid
+  pid=$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$1" '#{pane_pid}')
+  ps -axo ppid=,command= | awk -v p="$pid" -v command="$2" \
+    '$1 == p && index($0, command) { found=1 } END { exit !found }'
+}
+pane_is_bare_shell() {
+  # /bin/sh is reported as bash on macOS and dash on some Linux systems.
+  case "$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$1" '#{pane_current_command}')" in
+    sh|bash|dash|ksh) ! pane_has_child "$1" '' ;;
+    *) return 1 ;;
+  esac
+}
 
 pass=0; fail=0
-run()   { PATH="$SHIM:$PATH" TMUX=fake TMUX_PANE="$PANE" bash "$SCRIPT" "$1"; }
+run()   { PATH="$SHIM:$PATH" TMUX=fake TMUX_PANE="$PANE" bash "$SCRIPT" "$1" </dev/null; }
 opt()   { "$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$PANE" "$1"; }
 check() { # check <label> <expected> <actual>
   if [ "$2" = "$3" ]; then pass=$((pass+1))
@@ -181,27 +222,29 @@ check "SessionEnd unsets color" '' "$(opt @claude_color)"
 
 # --- gc: drops state when the recorded claude pane is gone OR has reverted to
 # --- a bare shell (claude died hard, pane survived); keeps live non-shell panes
-W2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"
+W2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_tab 'X '
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_pane '%999'
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_glyph 'G '
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W2" @claude_color '#00d700'
-W3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300')"
+W3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' 'sleep 300')"
 P3="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W3" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W3" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W3" @claude_pane "$P3"
-W4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"   # default shell
+W4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}')"   # default shell
 P4="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W4" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W4" @claude_pane "$P4"
 # W5: wrapper launch (cwork/cpull style) — pane is shell-fronted but the real
 # workload lives on as a child of pane_pid; gc must NOT clear it
-W5="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300; exec zsh')"
+W5="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' 'sleep 300; exec /bin/sh')"
 P5="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$W5" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W5" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$W5" @claude_pane "$P5"
-sleep 0.3   # let W4/W5 shells finish exec'ing so pane_current_command is real
+wait_for 'foreground workload' pane_command_is "$W3" sleep
+wait_for 'bare shell' pane_is_bare_shell "$W4"
+wait_for 'wrapper workload child' pane_has_child "$W5" 'sleep 300'
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc clears dead-pane window state" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_state)"
 check "gc clears dead-pane window tab" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$W2" @claude_tab)"
@@ -238,29 +281,32 @@ chmod +x "$WORKER"
 # WB1: done window whose pane_pid has the signature worker as a live descendant.
 # The pane shell runs the worker in the background then blocks, so pane_pid (the
 # shell) is the worker's ancestor and pane_current_command stays non-shell.
-WB1="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' "$WORKER & sleep 300")"
+WB1="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' "$WORKER & sleep 300")"
 PB1="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$WB1" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB1" @claude_state done
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB1" @claude_pane "$PB1"
 # WB2: done window whose only descendant is a NON-matching process (a plain
 # sleep, like an MCP server) — must NOT light the overlay.
-WB2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300')"
+WB2="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' 'sleep 300')"
 PB2="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$WB2" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB2" @claude_state done
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB2" @claude_pane "$PB2"
 # WB3: ACTIVE turn (working) with the matching worker — overlay must stay unset
 # (it already animates as working; the overlay is only for finished turns).
-WB3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' "$WORKER & sleep 300")"
+WB3="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' "$WORKER & sleep 300")"
 PB3="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$WB3" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB3" @claude_state working
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB3" @claude_pane "$PB3"
 # WBE: a turn that ended in ERROR with the matching worker — error stays red
 # (not overridden by the overlay), so @claude_bg must remain unset.
-WBE="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' "$WORKER & sleep 300")"
+WBE="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' "$WORKER & sleep 300")"
 PBE="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$WBE" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WBE" @claude_state error
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WBE" @claude_pane "$PBE"
-sleep 0.4   # let the pane shells spawn the worker / sleep children
+wait_for 'done window worker' pane_has_child "$WB1" "$WORKER"
+wait_for 'plain workload' pane_command_is "$WB2" sleep
+wait_for 'active window worker' pane_has_child "$WB3" "$WORKER"
+wait_for 'error window worker' pane_has_child "$WBE" "$WORKER"
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc sets @claude_bg for done window with live worker" 1 "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$WB1" @claude_bg)"
 check "gc keeps done state under the overlay" done "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$WB1" @claude_state)"
@@ -269,20 +315,19 @@ check "gc no @claude_bg for active (working) turn" "" "$("$REAL_TMUX" -L "$SOCK"
 check "gc no @claude_bg for error state with worker" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$WBE" @claude_bg)"
 
 # WB1 worker exits -> next gc clears the overlay (the only descendant is gone).
-"$REAL_TMUX" -L "$SOCK" send-keys -t "$WB1" C-c
 "$REAL_TMUX" -L "$SOCK" kill-window -t "$WB1" 2>/dev/null
 # Re-create WB1 as a done window with NO worker to prove the clear path directly.
-WB4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}' 'sleep 300')"
+WB4="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}' 'sleep 300')"
 PB4="$("$REAL_TMUX" -L "$SOCK" display-message -p -t "$WB4" '#{pane_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB4" @claude_state done
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB4" @claude_pane "$PB4"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB4" @claude_bg 1   # stale flag from a prior tick
-sleep 0.3
+wait_for 'replacement workload' pane_command_is "$WB4" sleep
 PATH="$SHIM:$PATH" TMUX=fake bash "$SCRIPT" gc
 check "gc clears @claude_bg once the worker is gone" "" "$("$REAL_TMUX" -L "$SOCK" show-options -wqv -t "$WB4" @claude_bg)"
 
 # dead-claude clear also drops a stale @claude_bg (pane gone entirely).
-WB5="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"
+WB5="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB5" @claude_state done
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB5" @claude_pane '%998'   # nonexistent pane
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WB5" @claude_bg 1
@@ -351,7 +396,7 @@ check "animator exits after compacting ends" 1 "$cleared"
 # --- animator also keeps cycling for a backgrounded (overlay-only) window ---
 # No working/subagent/compacting window exists; only @claude_bg=1 should hold
 # the animator alive so the blue overlay's spinner animates.
-WBA="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t -P -F '#{window_id}')"
+WBA="$("$REAL_TMUX" -L "$SOCK" new-window -d -t t: -P -F '#{window_id}')"
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WBA" @claude_state done
 "$REAL_TMUX" -L "$SOCK" set-option -w -t "$WBA" @claude_bg 1
 "$REAL_TMUX" -L "$SOCK" set-option -gu @claude_spinner_pid 2>/dev/null
