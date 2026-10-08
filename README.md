@@ -61,7 +61,7 @@ What each kind of change needs (this is what the command decides for you):
 |---|---|
 | `.zshrc`, `.aliases`, `.exports`, `.functions`, `.vimrc`, `.gitconfig` | nothing — open a new shell |
 | `.tmux.conf` | `prefix r` (reload), or restart the tmux server |
-| `~/.extra` (yours, not in the repo) | open a new shell; for `TMUX_NEW_WINDOW_DIR`, restart the tmux server |
+| `~/.extra` (yours, not in the repo) | open a new shell; restart tmux for `TMUX_NEW_WINDOW_DIR`, or apply `TMUX_SHOW_UTC` as described below |
 | a script in `bin/` | nothing — `~/bin` is a link to the directory |
 | a new `services/*.workflow` Quick Action | `./symlink-setup.sh` (links it and refreshes the Services menu) |
 | `codex/hooks.json` | nothing — it is a link; a new file there needs `./symlink-setup.sh` |
@@ -106,6 +106,7 @@ Machine-specific config goes in these files (gitignored):
 
 - `~/.extra` — secret env vars, PATH additions, and per-machine knobs:
   - `export TMUX_NEW_WINDOW_DIR="$HOME/Projects"` — where `prefix c` opens a new tmux window (default: `$HOME`; splits always keep the current pane's directory). tmux reads it when the server starts, so restart tmux after changing it. Use `$HOME`, not a quoted `~`; a directory that does not exist falls back to `$HOME`.
+  - `export TMUX_SHOW_UTC=1` — add a UTC date/time section to the tmux status bar. Only `1` enables it; unset or `0` keeps the existing local-only clock. See below for examples and applying changes.
 
 New shells and tmux windows never start inside a Python virtualenv, even when
 tmux was launched from one: `.tmux.conf` removes `VIRTUAL_ENV` from the
@@ -114,3 +115,39 @@ the shell that needs it, or use `uv run`. (Only `VIRTUAL_ENV`-style venvs are
 covered; conda's `CONDA_PREFIX` is left alone.)
 - `~/.gitconfig.local` — git credentials, signing key
 - `~/.ssh/config` — SSH hosts
+
+## Optional UTC clock in tmux
+
+UTC is hidden by default. To enable it, add this to your **local** `~/.extra`
+(this file is gitignored and is never committed):
+
+```sh
+export TMUX_SHOW_UTC=1
+```
+
+The clock portion changes from `06:27 | 08 Oct` to two labeled sections:
+
+```text
+EDT 08 Oct 06:27 | UTC 08 Oct 10:27
+```
+
+There is no separator between the date and time within a timezone. The local
+zone label follows the system timezone (including daylight saving), and UTC
+has its own date so midnight rollover stays clear:
+
+```text
+EDT 08 Oct 21:30 | UTC 09 Oct 01:30
+```
+
+After editing `~/.extra`, open a new shell to load it. New tmux servers inherit
+the setting. To apply it to an **existing** server without ending any sessions,
+run these commands from the new shell:
+
+```sh
+tmux set-environment -g TMUX_SHOW_UTC "${TMUX_SHOW_UTC:-0}"
+tmux source-file ~/.tmux.conf
+```
+
+Set `TMUX_SHOW_UTC=0` in `~/.extra` and repeat those steps to disable it. Merely
+reloading `.tmux.conf` does not load changes from `.extra`. The clock uses the
+existing 10-second status refresh interval.

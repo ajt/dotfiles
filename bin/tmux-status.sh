@@ -2,6 +2,9 @@
 # Helper for tmux status bar — called via #(~/bin/tmux-status.sh <cmd>)
 
 case "$1" in
+  utc)
+    date -u '+UTC %d %b %H:%M'
+    ;;
   battery)
     batt=$(pmset -g batt 2>/dev/null | grep -Eo '\d+%' | head -1 | tr -d '%')
     [ -z "$batt" ] && exit 0
