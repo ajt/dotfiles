@@ -125,7 +125,8 @@ UTC is hidden by default. To enable it, add this to your **local** `~/.extra`
 export TMUX_SHOW_UTC=1
 ```
 
-The clock portion changes from `06:27 | 08 Oct` to two labeled sections:
+The clock portion changes from `06:27 | 08 Oct` to two labeled sections, with
+UTC shown as bold black text on a blue background:
 
 ```text
 EDT 08 Oct 06:27 | UTC 08 Oct 10:27
