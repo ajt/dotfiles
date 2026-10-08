@@ -67,8 +67,8 @@ assert_local_only() {
 
 assert_local_only 'unset by default'
 tmux -S "$sock" set-environment -g TMUX_SHOW_UTC 1
-assert_contains "$(clock_format)" '| LOCAL_ZONE LOCAL_DATE LOCAL_TIME | UTC 01 Jan 00:30 ' \
-  'enabled: labeled date/time pairs with a separator only between zones'
+assert_contains "$(clock_format)" '| LOCAL_ZONE LOCAL_DATE LOCAL_TIME | #[fg=#000000]#[bg=#00afff]#[bold] UTC 01 Jan 00:30 #[default] ' \
+  'enabled: grouped timestamps, blue UTC block, and style reset before user/host'
 for value in 0 false true invalid ''; do
   tmux -S "$sock" set-environment -g TMUX_SHOW_UTC "$value"
   assert_local_only "value '$value'"
